@@ -1,0 +1,68 @@
+{
+  "name": "@toodly/desktop",
+  "version": "0.1.0",
+  "description": "Toodly desktop memo and schedule app",
+  "author": "Ji-Hoon24 <oh.ji.hoon24@gmail.com>",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "dist": "pnpm build && electron-builder",
+    "dist:dir": "pnpm build && electron-builder --dir",
+    "dist:mac": "pnpm build && electron-builder --mac",
+    "dist:win": "pnpm build && electron-builder --win"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "electron-updater": "^6.6.2",
+    "keytar": "^7.9.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "wait-on": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "electron": "latest",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.toodly.app",
+    "productName": "Toodly",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "protocols": [
+      {
+        "name": "Toodly",
+        "schemes": [
+          "toodly"
+        ]
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Toodly-official",
+        "repo": "toodly"
+      }
+    ]
+  }
+}

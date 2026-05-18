@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Toodly Rough Screen</title>
+    <style>
+      :root {
+        --blue: #3182f6;
+        --blue-soft: #e8f3ff;
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #191f28;
+        --muted: #8b95a1;
+        --line: #e5e8eb;
+        --green: #00c471;
+        --orange: #ff8a00;
+        --radius-xl: 28px;
+        --radius-lg: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .stage {
+        min-height: 100vh;
+        padding: 36px;
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 28px;
+      }
+
+      .panel {
+        background: var(--card);
+        border-radius: var(--radius-xl);
+        box-shadow: 0 18px 50px rgba(0, 27, 55, 0.08);
+      }
+
+      .pin {
+        height: 760px;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .pin-header,
+      .topbar,
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .title { font-size: 24px; font-weight: 800; letter-spacing: -0.4px; }
+      .caption { color: var(--muted); font-size: 13px; }
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .quick-input {
+        display: flex;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 18px;
+        background: #f2f4f6;
+      }
+      .quick-input input {
+        min-width: 0;
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        padding: 10px;
+        font-size: 15px;
+      }
+      .quick-input button,
+      .primary-btn {
+        border: 0;
+        border-radius: 14px;
+        background: var(--blue);
+        color: white;
+        font-weight: 700;
+        padding: 0 16px;
+      }
+
+      .todo-list { display: flex; flex-direction: column; gap: 10px; }
+      .todo {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        background: #f9fafb;
+        cursor: pointer;
+      }
+      .todo.selected { outline: 3px solid var(--blue-soft); background: white; }
+      .todo input { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--blue); }
+      .todo-text { flex: 1; }
+      .todo-text strong { display: block; font-size: 15px; }
+      .todo-text span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+      .carry { background: #fff7e8; }
+      .done strong { color: var(--muted); text-decoration: line-through; }
+
+      .todo-edit-popover {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: white;
+        box-shadow: 0 14px 40px rgba(0, 27, 55, 0.1);
+      }
+      .tag-suggest {
+        display: grid;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .tag-suggest-label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .tag-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tag-chip {
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .tag-help {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .todo-edit-actions,
+      .popover-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .secondary-btn,
+      .danger-btn {
+        height: 42px;
+        border: 0;
+        border-radius: 14px;
+        font-weight: 800;
+      }
+      .secondary-btn { background: var(--blue); color: white; }
+      .danger-btn { background: #fff0f0; color: #f04452; }
+
+      .pin-footer {
+        margin-top: auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .mini-stat {
+        padding: 14px;
+        border-radius: 18px;
+        background: #f2f4f6;
+      }
+      .mini-stat b { display: block; font-size: 22px; }
+      .mini-stat span { color: var(--muted); font-size: 12px; }
+
+      .full {
+        min-width: 860px;
+        padding: 28px;
+      }
+      .tabs { display: flex; gap: 8px; background: #f2f4f6; padding: 5px; border-radius: 18px; }
+      .tab { padding: 10px 16px; border-radius: 14px; color: var(--muted); font-weight: 700; font-size: 14px; }
+      .tab.active { background: white; color: var(--text); box-shadow: 0 4px 14px rgba(0,0,0,0.05); }
+
+      .content-grid {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+      }
+      .calendar-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+      }
+      .day-name,
+      .date-cell { text-align: center; font-size: 13px; }
+      .day-name { color: var(--muted); font-weight: 700; }
+      .date-cell {
+        position: relative;
+        min-height: 96px;
+        padding: 10px 8px;
+        border-radius: 16px;
+        background: #f9fafb;
+        text-align: left;
+      }
+      .date-cell.muted { color: #b0b8c1; background: #fbfcfd; }
+      .date-cell .num { font-weight: 800; }
+      .date-cell.today { background: var(--blue); color: white; }
+      .date-cell.selected { outline: 3px solid var(--blue-soft); }
+      .dot { width: 6px; height: 6px; margin-top: 8px; border-radius: 50%; background: currentColor; opacity: .8; }
+      .event-pill {
+        margin-top: 8px;
+        padding: 6px 8px;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .today .event-pill { background: rgba(255,255,255,.2); color: white; }
+      .calendar-wrap { position: relative; }
+      .schedule-popover {
+        position: absolute;
+        width: 300px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: white;
+        box-shadow: 0 20px 60px rgba(0, 27, 55, 0.16);
+      }
+      .schedule-popover.add-case { left: 158px; top: 246px; }
+      .schedule-popover.edit-case { right: 18px; top: 340px; }
+      .schedule-popover::before {
+        content: "";
+        position: absolute;
+        top: -8px;
+        width: 16px;
+        height: 16px;
+        background: white;
+        border-left: 1px solid var(--line);
+        border-top: 1px solid var(--line);
+        transform: rotate(45deg);
+      }
+      .schedule-popover.add-case::before { left: 54px; }
+      .schedule-popover.edit-case::before { right: 54px; }
+      .schedule-form { display: grid; gap: 10px; margin-top: 14px; }
+      .field {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 13px 14px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .primary-btn { height: 46px; font-size: 15px; }
+
+      .summary-list { display: grid; gap: 12px; margin-top: 16px; }
+      .summary-item {
+        display: grid;
+        grid-template-columns: 44px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 18px;
+        background: #f9fafb;
+      }
+      .badge {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        font-weight: 900;
+      }
+      .badge.blue { background: var(--blue-soft); color: var(--blue); }
+      .badge.green { background: #e6f8ef; color: var(--green); }
+      .badge.orange { background: #fff3df; color: var(--orange); }
+      .summary-item strong { display: block; font-size: 15px; }
+      .summary-item span { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+      .ai-card {
+        margin-top: 20px;
+        padding: 18px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #eef6ff, #f7f3ff);
+      }
+      .ai-card b { display: block; margin-bottom: 6px; }
+      .ai-card p { margin: 0; color: #4e5968; font-size: 13px; line-height: 1.5; }
+      .screen-stack {
+        margin-top: 20px;
+        display: grid;
+        gap: 20px;
+      }
+      .screen-label {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: #f2f4f6;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .report-block {
+        margin-top: 16px;
+        display: grid;
+        gap: 12px;
+      }
+      .report-section {
+        padding: 16px;
+        border-radius: 18px;
+        background: #f9fafb;
+      }
+      .report-section h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+      .report-section ul {
+        margin: 0;
+        padding-left: 18px;
+        color: #4e5968;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .title-list {
+        margin: 0;
+        padding-left: 18px;
+        color: #333d4b;
+        font-size: 15px;
+        line-height: 1.8;
+      }
+      .ai-summary-box {
+        margin-top: 14px;
+        padding: 18px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #eef6ff, #f7f3ff);
+      }
+      .ai-summary-box b { display: block; margin-bottom: 8px; }
+      .ai-summary-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .ai-summary-section {
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+      .ai-summary-section h4 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+      .ai-summary-box ul {
+        margin: 0;
+        padding-left: 18px;
+        color: #4e5968;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <aside class="panel pin">
+        <div class="pin-header">
+          <div>
+            <div class="caption">고정핀 · 오늘</div>
+            <div class="title">빠른 TODO</div>
+          </div>
+          <button class="icon-btn">↗</button>
+        </div>
+
+        <div class="quick-input">
+          <input placeholder="할 일을 바로 입력" />
+          <button>추가</button>
+        </div>
+
+        <section class="todo-list">
+          <label class="todo carry">
+            <input type="checkbox" />
+            <div class="todo-text">
+              <strong>어제 못 끝낸 기획 정리</strong>
+              <span>미완료라 오늘로 이어짐</span>
+            </div>
+          </label>
+          <label class="todo selected">
+            <input type="checkbox" />
+            <div class="todo-text">
+              <strong>Toodly 화면 구조 잡기</strong>
+              <span>체크박스 외 영역 클릭 → 수정/삭제</span>
+            </div>
+          </label>
+          <div class="todo-edit-popover">
+            <div class="caption">TODO 항목 클릭</div>
+            <div class="title" style="font-size:18px">TODO 수정</div>
+            <div class="schedule-form">
+              <div class="field">내용: Toodly 화면 구조 잡기</div>
+              <div class="field">날짜: 오늘</div>
+              <div class="field">태그: 기</div>
+              <div class="tag-suggest">
+                <div class="tag-suggest-label">유사 태그 최대 3개</div>
+                <div class="tag-chips">
+                  <span class="tag-chip">기획</span>
+                  <span class="tag-chip">기술검토</span>
+                  <span class="tag-chip">기록</span>
+                </div>
+                <div class="tag-help">선택 없이 저장하면 입력한 `기`가 새 태그로 저장됩니다.</div>
+              </div>
+              <div class="todo-edit-actions">
+                <button class="secondary-btn">저장</button>
+                <button class="danger-btn">삭제</button>
+              </div>
+            </div>
+          </div>
+          <label class="todo">
+            <input type="checkbox" checked />
+            <div class="todo-text done">
+              <strong>앱 이름 확정</strong>
+              <span>완료됨</span>
+            </div>
+          </label>
+        </section>
+
+        <div class="pin-footer">
+          <div class="mini-stat"><b>5</b><span>오늘 할 일</span></div>
+          <div class="mini-stat"><b>2</b><span>이월된 일</span></div>
+        </div>
+      </aside>
+
+      <section class="panel full">
+        <header class="topbar">
+          <div>
+            <div class="caption">전체화면</div>
+            <div class="title">일정과 작업내역</div>
+          </div>
+          <nav class="tabs">
+            <div class="tab active">달력</div>
+            <div class="tab">주간 정리</div>
+            <div class="tab">월간 정리</div>
+          </nav>
+        </header>
+
+        <div class="content-grid">
+          <section class="card calendar-wrap">
+            <div class="section-head">
+              <div>
+                <div class="caption">2026년 5월</div>
+                <div class="title">이번 달 일정</div>
+              </div>
+            </div>
+            <div class="calendar-grid">
+              <div class="day-name">월</div><div class="day-name">화</div><div class="day-name">수</div><div class="day-name">목</div><div class="day-name">금</div><div class="day-name">토</div><div class="day-name">일</div>
+              <div class="date-cell muted"><div class="num">27</div></div>
+              <div class="date-cell muted"><div class="num">28</div></div>
+              <div class="date-cell muted"><div class="num">29</div></div>
+              <div class="date-cell muted"><div class="num">30</div></div>
+              <div class="date-cell"><div class="num">1</div></div>
+              <div class="date-cell"><div class="num">2</div></div>
+              <div class="date-cell"><div class="num">3</div></div>
+              <div class="date-cell"><div class="num">4</div></div>
+              <div class="date-cell"><div class="num">5</div><div class="event-pill">어린이날</div></div>
+              <div class="date-cell"><div class="num">6</div></div>
+              <div class="date-cell"><div class="num">7</div></div>
+              <div class="date-cell"><div class="num">8</div></div>
+              <div class="date-cell"><div class="num">9</div></div>
+              <div class="date-cell"><div class="num">10</div></div>
+              <div class="date-cell"><div class="num">11</div></div>
+              <div class="date-cell selected"><div class="num">12</div><div class="dot"></div></div>
+              <div class="date-cell"><div class="num">13</div></div>
+              <div class="date-cell"><div class="num">14</div><div class="event-pill">회의</div></div>
+              <div class="date-cell"><div class="num">15</div></div>
+              <div class="date-cell"><div class="num">16</div></div>
+              <div class="date-cell"><div class="num">17</div></div>
+              <div class="date-cell today selected"><div class="num">18</div><div class="event-pill">Toodly 설계</div></div>
+              <div class="date-cell"><div class="num">19</div></div>
+              <div class="date-cell"><div class="num">20</div><div class="dot"></div></div>
+              <div class="date-cell"><div class="num">21</div></div>
+              <div class="date-cell"><div class="num">22</div><div class="event-pill">리뷰</div></div>
+              <div class="date-cell"><div class="num">23</div></div>
+              <div class="date-cell"><div class="num">24</div></div>
+              <div class="date-cell"><div class="num">25</div></div>
+              <div class="date-cell"><div class="num">26</div></div>
+              <div class="date-cell"><div class="num">27</div></div>
+              <div class="date-cell"><div class="num">28</div></div>
+              <div class="date-cell"><div class="num">29</div></div>
+              <div class="date-cell"><div class="num">30</div></div>
+              <div class="date-cell"><div class="num">31</div></div>
+            </div>
+            <div class="schedule-popover add-case">
+              <div class="caption">5월 12일 · 빈 날짜 클릭</div>
+              <div class="title" style="font-size:20px">새 일정 추가</div>
+              <div class="schedule-form">
+                <div class="field">제목: 예) 미팅</div>
+                <div class="field">시간: 선택사항</div>
+                <div class="field">태그: 회</div>
+                <div class="tag-suggest">
+                  <div class="tag-suggest-label">유사 태그 최대 3개</div>
+                  <div class="tag-chips">
+                    <span class="tag-chip">회의</span>
+                    <span class="tag-chip">회사</span>
+                    <span class="tag-chip">회고</span>
+                  </div>
+                  <div class="tag-help">선택 없이 저장하면 입력한 `회`가 새 태그로 저장됩니다.</div>
+                </div>
+                <button class="primary-btn">일정 추가</button>
+              </div>
+            </div>
+            <div class="schedule-popover edit-case">
+              <div class="caption">5월 18일 · 기존 일정 클릭</div>
+              <div class="title" style="font-size:20px">일정 수정</div>
+              <div class="schedule-form">
+                <div class="field">제목: Toodly 설계</div>
+                <div class="field">시간: 오후 2:00</div>
+                <div class="field">태그: 기획</div>
+                <div class="tag-suggest">
+                  <div class="tag-suggest-label">유사 태그 최대 3개</div>
+                  <div class="tag-chips">
+                    <span class="tag-chip">기획</span>
+                    <span class="tag-chip">기술검토</span>
+                    <span class="tag-chip">기록</span>
+                  </div>
+                  <div class="tag-help">선택 없이 저장하면 입력한 태그가 새 태그로 저장됩니다.</div>
+                </div>
+                <div class="popover-actions">
+                  <button class="secondary-btn">저장</button>
+                  <button class="danger-btn">삭제</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside>
+            <section class="card">
+              <div class="section-head">
+                <div>
+                  <div class="caption">AI 없어도 표시</div>
+                  <div class="title">작업내역</div>
+                </div>
+              </div>
+              <div class="summary-list">
+                <div class="summary-item">
+                  <div class="badge blue">W</div>
+                  <div><strong>이번 주 완료 12개</strong><span>이월 3개 · 진행중 5개</span></div>
+                  <b>72%</b>
+                </div>
+                <div class="summary-item">
+                  <div class="badge green">M</div>
+                  <div><strong>이번 달 완료 38개</strong><span>이월 6개 · 일정 4개</span></div>
+                  <b>64%</b>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <div class="ai-card">
+          <b>데이터 흐름 메모</b>
+          <p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p>
+        </div>
+
+        <div class="screen-stack">
+          <section class="card">
+            <div class="screen-label">탭 화면 · 주간 정리</div>
+            <div class="section-head" style="margin-top:14px">
+              <div>
+                <div class="caption">주간 정리 화면</div>
+                <div class="title">주간 정리</div>
+              </div>
+              <div class="badge blue">W</div>
+            </div>
+            <div class="report-block">
+              <div class="report-section">
+                <h3>이번 주 완료한 작업</h3>
+                <ul class="title-list">
+                  <li><strong>#기획</strong><br />- Toodly 고정핀 TODO 화면 구조 정리<br />- 전체화면 달력 일정 추가/수정 흐름 설계</li>
+                  <li><strong>#기록</strong><br />- 미완료 TODO 다음날 이월 동작 정의</li>
+                  <li><strong>#화면</strong><br />- 주간 정리 화면 구성<br />- 월간 정리 화면 구성</li>
+                </ul>
+              </div>
+              <div class="report-section">
+                <h3>다음 주 작업 예정</h3>
+                <ul class="title-list">
+                  <li><strong>#개발</strong><br />- Electron 프로젝트 기본 구조 생성</li>
+                  <li><strong>#TODO</strong><br />- 고정핀 창 TODO 추가/체크/수정/삭제 연결</li>
+                  <li><strong>#일정</strong><br />- 전체화면 달력 일정 추가/수정/삭제 연결</li>
+                </ul>
+              </div>
+              <div class="ai-summary-box">
+                <b>AI가 정리한 형태</b>
+                <div class="ai-summary-group">
+                  <div class="ai-summary-section">
+                    <h4>이번 주 작업내역</h4>
+                    <ul>
+                      <li>#기획: 핵심 사용 흐름과 화면 역할을 정리했습니다.</li>
+                      <li>#TODO: 고정핀 입력/체크/수정/삭제 구조를 잡았습니다.</li>
+                      <li>#일정: 전체화면 달력의 일정 추가/수정 흐름을 설계했습니다.</li>
+                    </ul>
+                  </div>
+                  <div class="ai-summary-section">
+                    <h4>다음 주 작업내역</h4>
+                    <ul>
+                      <li>Electron 고정핀 창과 전체화면 창을 분리합니다.</li>
+                      <li>TODO와 일정 데이터를 로컬 DB에 저장합니다.</li>
+                      <li>달력과 정리 화면에 실제 데이터를 연결합니다.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="screen-label">탭 화면 · 월간 정리</div>
+            <div class="section-head" style="margin-top:14px">
+              <div>
+                <div class="caption">월간 정리 화면</div>
+                <div class="title">월간 정리</div>
+              </div>
+              <div class="badge green">M</div>
+            </div>
+            <div class="report-block">
+              <div class="report-section">
+                <h3>이번 달 완료한 작업</h3>
+                <ul class="title-list">
+                  <li><strong>#기획</strong><br />- Toodly 앱 기본 사용 흐름 설계<br />- 고정핀/전체화면 역할 분리</li>
+                  <li><strong>#TODO</strong><br />- 빠른 TODO 입력 및 체크 구조 정리<br />- 미완료 항목 이월 정책</li>
+                  <li><strong>#일정</strong><br />- 달력 기반 일정 관리 화면 구성<br />- 새 일정 추가/수정 팝업 구성</li>
+                  <li><strong>#화면</strong><br />- 작업내역 정리 화면 방향 설정</li>
+                  <li><strong>#AI</strong><br />- AI OAuth 연동 범위 미구현 처리</li>
+                </ul>
+              </div>
+              <div class="report-section">
+                <h3>다음 달 작업 예정</h3>
+                <ul class="title-list">
+                  <li><strong>#저장</strong><br />- SQLite 기반 로컬 저장 구조 구현</li>
+                  <li><strong>#정리</strong><br />- 주간/월간 정리 자동 생성 규칙 정리</li>
+                  <li><strong>#AI</strong><br />- AI 로그인 후 작업내역 정리 위임 기능 검토</li>
+                </ul>
+              </div>
+              <div class="ai-summary-box">
+                <b>AI가 정리한 형태</b>
+                <ul>
+                  <li>#기획: 제품 방향과 고정핀/전체화면 역할을 정의했습니다.</li>
+                  <li>#TODO: 빠른 입력, 체크, 이월 정책을 정리했습니다.</li>
+                  <li>#일정: 월간 달력과 일정 추가/수정 팝업을 구성했습니다.</li>
+                  <li>#AI: 로그인 이후 작업내역 정리 위임 범위를 남겨뒀습니다.</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
