@@ -45,12 +45,25 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
   gap: 18px;
 }
 .pin-standalone {
+  position: relative;
   width: 100vw;
   height: 100vh;
   padding-top: 54px;
   border-radius: 0;
   box-shadow: none;
+  overflow: hidden;
   -webkit-app-region: drag;
+}
+.pin-standalone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  background: white;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .pin-header,
@@ -118,6 +131,12 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
 }
 
 .todo-list { display: flex; flex-direction: column; gap: 10px; }
+.pin-standalone .todo-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
 .todo-block { display: flex; flex-direction: column; gap: 10px; }
 .todo {
   display: flex;
