@@ -17,6 +17,8 @@ declare global {
   interface Window {
     toodly?: {
       openMainWindow: () => Promise<boolean>;
+      getPinAlwaysOnTop: () => Promise<boolean>;
+      setPinAlwaysOnTop: (enabled: boolean) => Promise<boolean>;
       getData: () => Promise<ToodlyData>;
       setData: (data: ToodlyData) => Promise<ToodlyData>;
       getUpdateStatus: () => Promise<UpdateStatus>;
@@ -33,8 +35,9 @@ declare global {
 }
 
 const STORAGE_KEY = 'toodly-state-v2';
-const today = new Date('2026-05-18T09:00:00');
+const today = new Date();
 const todayIso = toIsoDate(today);
+const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 const initialData: ToodlyData = {
   todos: [
     { id: 1, title: '어제 못 끝낸 기획 정리', done: false, createdAt: '2026-05-17', tag: '기획' },
@@ -56,6 +59,10 @@ function toIsoDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function formatHeaderDate(date: Date) {
+  return `${toIsoDate(date)} (${weekdayLabels[date.getDay()]})`;
 }
 
 function parseIsoDate(value: string) {
@@ -253,48 +260,69 @@ function RepeatSelect({ value, onChange }: { value: string; onChange: (value: st
 
 function PinView({ embedded = false, data, updateData, rememberTag }: { embedded?: boolean; data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void }) {
   const [quickTitle, setQuickTitle] = useState('');
-  const [selectedId, setSelectedId] = useState(data.todos[1]?.id ?? data.todos[0]?.id ?? 0);
-  const selected = data.todos.find((todo) => todo.id === selectedId) ?? data.todos[0];
+  const [selectedId, setSelectedId] = useState(0);
+  const selected = data.todos.find((todo) => todo.id === selectedId);
   const [editTitle, setEditTitle] = useState(selected?.title ?? '');
   const [editTag, setEditTag] = useState(selected?.tag ?? '');
+  const [pinAlwaysOnTop, setPinAlwaysOnTop] = useState(true);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const currentIso = toIsoDate(currentDate);
+  const visibleTodos = data.todos.filter((todo) => !todo.done || todo.completedAt === currentIso);
 
   useEffect(() => {
     setEditTitle(selected?.title ?? '');
     setEditTag(selected?.tag ?? '');
   }, [selected?.id, selected?.title, selected?.tag]);
 
+  useEffect(() => {
+    void window.toodly?.getPinAlwaysOnTop().then(setPinAlwaysOnTop).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentDate(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const togglePinAlwaysOnTop = async () => {
+    const next = !pinAlwaysOnTop;
+    setPinAlwaysOnTop(next);
+    const saved = await window.toodly?.setPinAlwaysOnTop(next).catch(() => next);
+    setPinAlwaysOnTop(saved ?? next);
+  };
+
   const addTodo = () => {
     const title = quickTitle.trim();
     if (!title) return;
-    const nextTodo = { id: Date.now(), title, done: false, createdAt: todayIso, tag: 'TODO' };
+    const nextTodo = { id: Date.now(), title, done: false, createdAt: currentIso, tag: 'TODO' };
     rememberTag('TODO');
     updateData((current) => ({ ...current, todos: [nextTodo, ...current.todos] }));
-    setSelectedId(nextTodo.id);
     setQuickTitle('');
   };
 
-  const toggleDone = (id: number) => updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === id ? { ...item, done: !item.done, completedAt: item.done ? undefined : todayIso } : item) }));
+  const toggleDone = (id: number) => {
+    updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === id ? { ...item, done: !item.done, completedAt: item.done ? undefined : currentIso } : item) }));
+  };
   const saveTodo = () => {
     if (!selected || !editTitle.trim()) return;
     rememberTag(editTag);
     updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === selected.id ? { ...item, title: editTitle.trim(), tag: editTag.trim() || undefined } : item) }));
+    setSelectedId(0);
   };
   const deleteTodo = () => {
     if (!selected || !window.confirm('이 TODO를 삭제할까요?')) return;
     updateData((current) => ({ ...current, todos: current.todos.filter((item) => item.id !== selected.id) }));
-    setSelectedId(data.todos.find((item) => item.id !== selected.id)?.id ?? 0);
+    setSelectedId(0);
   };
 
-  const carryCount = data.todos.filter((todo) => !todo.done && todo.createdAt < todayIso).length;
+  const carryCount = visibleTodos.filter((todo) => !todo.done && todo.createdAt < currentIso).length;
 
   return (
     <aside className={`panel pin ${embedded ? '' : 'pin-standalone'}`}>
-      <div className="pin-header"><div><div className="caption">고정핀 · 오늘</div><div className="title">빠른 TODO</div></div><button className="icon-btn" onClick={() => void window.toodly?.openMainWindow()}>↗</button></div>
+      <div className="pin-header"><div><div className="caption">{formatHeaderDate(currentDate)}</div><div className="title">Toodly</div></div><div className="pin-actions"><button className={`icon-btn pin-toggle ${pinAlwaysOnTop ? '' : 'off'}`} aria-label={pinAlwaysOnTop ? '고정핀 해제' : '고정핀 고정'} onClick={togglePinAlwaysOnTop} type="button">📌</button><button className="icon-btn" aria-label="전체화면 열기" onClick={() => void window.toodly?.openMainWindow()} type="button">↗</button></div></div>
       <form className="quick-input" onSubmit={(event) => { event.preventDefault(); addTodo(); }}><input placeholder="할 일을 바로 입력" value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} /><button>추가</button></form>
       <section className="todo-list">
-        {!data.todos.length && <div className="empty-card">아직 TODO가 없습니다.</div>}
-        {data.todos.map((todo) => <label className={`todo ${!todo.done && todo.createdAt < todayIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`} key={todo.id} onClick={() => setSelectedId(todo.id)}><input type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} onClick={(event) => event.stopPropagation()} /><div className={`todo-text ${todo.done ? 'done' : ''}`}><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : todo.createdAt < todayIso ? '미완료라 오늘로 이어짐' : `#${todo.tag ?? 'TODO'}`}</span></div></label>)}
-        {selected && <div className="todo-edit-popover"><div className="caption">TODO 항목 클릭</div><div className="title small-title">TODO 수정</div><div className="schedule-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">생성일: {selected.createdAt}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}
+        {!visibleTodos.length && <div className="empty-card">아직 TODO가 없습니다.</div>}
+        {visibleTodos.map((todo) => <div className="todo-block" key={todo.id}><div className={`todo ${!todo.done && todo.createdAt < currentIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`}><input aria-label={`${todo.title} 완료`} type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} /><button className={`todo-text ${todo.done ? 'done' : ''}`} onClick={() => setSelectedId(selected?.id === todo.id ? 0 : todo.id)} type="button"><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : `#${todo.tag ?? 'TODO'}`}</span></button></div>{selected?.id === todo.id && <div className="todo-edit-popover"><div className="caption">TODO 텍스트 클릭</div><div className="title small-title">TODO 수정</div><div className="schedule-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">생성일: {selected.createdAt}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}</div>)}
       </section>
       <div className="pin-footer"><div className="mini-stat"><b>{data.todos.filter((todo) => !todo.done).length}</b><span>오늘 할 일</span></div><div className="mini-stat"><b>{carryCount}</b><span>이월된 일</span></div></div>
     </aside>
@@ -472,7 +500,7 @@ function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (upda
 function MainView({ data, updateData, rememberTag }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void }) {
   const [tab, setTab] = useState<Tab>('calendar');
   const [viewMonth, setViewMonth] = useState(startOfMonth(today));
-  return <main className="stage"><PinView embedded data={data} updateData={updateData} rememberTag={rememberTag} /><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">일정과 작업내역</div></div><div className="top-actions"><AiControl data={data} updateData={updateData} /><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header><UpdateNotice />{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
+  return <main className="stage"><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">일정과 작업내역</div></div><div className="top-actions"><AiControl data={data} updateData={updateData} /><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header><UpdateNotice />{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
 }
 
 function App() {

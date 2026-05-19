@@ -11,6 +11,7 @@ try {
 
 let pinWindow;
 let mainWindow;
+let pinAlwaysOnTop = true;
 let db;
 let useSqlite = false;
 let memoryToken;
@@ -514,8 +515,10 @@ function createPinWindow() {
     minWidth: 340,
     minHeight: 620,
     resizable: true,
-    alwaysOnTop: true,
+    alwaysOnTop: pinAlwaysOnTop,
     title: 'Toodly Pin',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: '#f5f7fb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -526,6 +529,12 @@ function createPinWindow() {
 
   pinWindow.on('close', () => saveWindowState('pin', pinWindow));
   loadWindow(pinWindow, 'pin');
+}
+
+function setPinAlwaysOnTop(enabled) {
+  pinAlwaysOnTop = Boolean(enabled);
+  if (pinWindow && !pinWindow.isDestroyed()) pinWindow.setAlwaysOnTop(pinAlwaysOnTop);
+  return pinAlwaysOnTop;
 }
 
 function createMainWindow() {
@@ -540,6 +549,8 @@ function createMainWindow() {
     minWidth: 960,
     minHeight: 720,
     title: 'Toodly',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 54, y: 50 },
     backgroundColor: '#f5f7fb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -582,6 +593,9 @@ app.whenReady().then(() => {
     createMainWindow();
     return true;
   });
+
+  ipcMain.handle('toodly:get-pin-always-on-top', () => pinAlwaysOnTop);
+  ipcMain.handle('toodly:set-pin-always-on-top', (_event, enabled) => setPinAlwaysOnTop(enabled));
 
   ipcMain.handle('toodly:get-data', () => loadData());
   ipcMain.handle('toodly:set-data', (_event, data) => saveData(data));

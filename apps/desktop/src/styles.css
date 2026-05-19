@@ -19,14 +19,16 @@ body {
   background: var(--bg);
   color: var(--text);
 }
-button { cursor: pointer; font: inherit; }
+button { cursor: pointer; font: inherit; -webkit-app-region: no-drag; }
+input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input, .calendar-grid, .screen-stack, .content-grid, .update-notice { -webkit-app-region: no-drag; }
 
 .stage {
   min-height: 100vh;
   padding: 36px;
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 1fr;
   gap: 28px;
+  -webkit-app-region: drag;
 }
 
 .panel {
@@ -45,8 +47,10 @@ button { cursor: pointer; font: inherit; }
 .pin-standalone {
   width: 100vw;
   height: 100vh;
+  padding-top: 54px;
   border-radius: 0;
   box-shadow: none;
+  -webkit-app-region: drag;
 }
 
 .pin-header,
@@ -62,6 +66,7 @@ button { cursor: pointer; font: inherit; }
 .small-title { font-size: 18px; }
 .popover-title { font-size: 20px; }
 .caption { color: var(--muted); font-size: 13px; }
+.pin-actions { display: flex; gap: 8px; }
 .icon-btn {
   width: 36px;
   height: 36px;
@@ -71,6 +76,19 @@ button { cursor: pointer; font: inherit; }
   color: var(--blue);
   font-size: 18px;
   font-weight: 800;
+}
+.pin-toggle { position: relative; overflow: hidden; }
+.pin-toggle.off::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 28px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--blue);
+  transform: rotate(45deg);
+  transform-origin: left center;
 }
 
 .quick-input {
@@ -100,6 +118,7 @@ button { cursor: pointer; font: inherit; }
 }
 
 .todo-list { display: flex; flex-direction: column; gap: 10px; }
+.todo-block { display: flex; flex-direction: column; gap: 10px; }
 .todo {
   display: flex;
   align-items: flex-start;
@@ -111,7 +130,7 @@ button { cursor: pointer; font: inherit; }
 }
 .todo.selected { outline: 3px solid var(--blue-soft); background: white; }
 .todo input { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--blue); }
-.todo-text { flex: 1; }
+.todo-text { flex: 1; border: 0; background: transparent; padding: 0; text-align: left; color: inherit; }
 .todo-text strong { display: block; font-size: 15px; }
 .todo-text span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .carry { background: #fff7e8; }
@@ -186,7 +205,7 @@ button { cursor: pointer; font: inherit; }
 
 .full {
   min-width: 860px;
-  padding: 28px;
+  padding: 54px 28px 28px;
 }
 .tabs { display: flex; gap: 8px; background: #f2f4f6; padding: 5px; border-radius: 18px; }
 .tab { border: 0; background: transparent; padding: 10px 16px; border-radius: 14px; color: var(--muted); font-weight: 700; font-size: 14px; }

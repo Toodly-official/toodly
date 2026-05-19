@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('toodly', {
   openMainWindow: () => ipcRenderer.invoke('open-main-window'),
+  getPinAlwaysOnTop: () => ipcRenderer.invoke('toodly:get-pin-always-on-top'),
+  setPinAlwaysOnTop: (enabled) => ipcRenderer.invoke('toodly:set-pin-always-on-top', enabled),
   getData: () => ipcRenderer.invoke('toodly:get-data'),
   setData: (data) => ipcRenderer.invoke('toodly:set-data', data),
   getUpdateStatus: () => ipcRenderer.invoke('toodly:get-update-status'),
