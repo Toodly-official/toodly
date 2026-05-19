@@ -23,11 +23,12 @@ button { cursor: pointer; font: inherit; -webkit-app-region: no-drag; }
 input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input, .calendar-grid, .screen-stack, .content-grid, .update-notice { -webkit-app-region: no-drag; }
 
 .stage {
-  min-height: 100vh;
-  padding: 36px;
+  height: 100vh;
+  padding: 58px 36px 36px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 28px;
+  overflow: hidden;
   -webkit-app-region: drag;
 }
 
@@ -224,7 +225,9 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
 
 .full {
   min-width: 860px;
-  padding: 54px 28px 28px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px;
 }
 .tabs { display: flex; gap: 8px; background: #f2f4f6; padding: 5px; border-radius: 18px; }
 .tab { border: 0; background: transparent; padding: 10px 16px; border-radius: 14px; color: var(--muted); font-weight: 700; font-size: 14px; }
@@ -284,9 +287,12 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
   text-overflow: ellipsis;
 }
 .today .event-pill { background: rgba(255,255,255,.2); color: white; }
+.todo-pill { background: #fff7e8; color: var(--orange); }
+.done-pill { opacity: .6; text-decoration: line-through; }
 .calendar-wrap { position: relative; }
 .schedule-popover {
   position: absolute;
+  z-index: 5;
   width: 300px;
   padding: 18px;
   border: 1px solid var(--line);
@@ -314,6 +320,7 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
 }
 .schedule-popover.add-case::before { left: 54px; }
 .schedule-popover.edit-case::before { right: 54px; }
+.todo-calendar-popover::before { left: 24px; }
 .schedule-form { display: grid; gap: 10px; margin-top: 14px; }
 .field {
   border: 1px solid var(--line);

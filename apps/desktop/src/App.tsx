@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -139,7 +139,7 @@ function formatMonth(date: Date) {
 function buildCalendarDays(viewMonth: Date) {
   const first = startOfMonth(viewMonth);
   const start = new Date(first);
-  start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+  start.setDate(first.getDate() - first.getDay());
   return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
@@ -237,7 +237,7 @@ function useUpdateStatus() {
 function TagSuggest({ value, tags, onPick }: { value: string; tags: string[]; onPick: (tag: string) => void }) {
   return (
     <div className="tag-suggest">
-      <div className="tag-suggest-label">유사 태그 최대 3개</div>
+      <div className="tag-suggest-label">태그 추천</div>
       <div className="tag-chips">
         {getSuggestions(value, tags).map((tag) => <button className="tag-chip" key={tag} onClick={() => onPick(tag)} type="button">{tag}</button>)}
       </div>
@@ -330,7 +330,7 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
 }
 
 function CalendarView({ data, updateData, rememberTag, viewMonth, setViewMonth }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void; viewMonth: Date; setViewMonth: (date: Date) => void }) {
-  const [popover, setPopover] = useState<{ mode: 'add' | 'edit'; iso: string; scheduleId?: number } | null>(null);
+  const [popover, setPopover] = useState<{ mode: 'add' | 'edit'; source?: 'todo' | 'schedule'; iso: string; todoId?: number; scheduleId?: number; x: number; y: number } | null>(null);
   const [draft, setDraft] = useState<Draft>({ title: '', scheduledAt: todayIso, startTime: '', endTime: '', memo: '', repeat: '없음', tag: '' });
   const calendarDays = useMemo(() => buildCalendarDays(viewMonth), [viewMonth]);
   const scheduleByDate = useMemo(() => {
@@ -340,43 +340,91 @@ function CalendarView({ data, updateData, rememberTag, viewMonth, setViewMonth }
     expandSchedulesBetween(data.schedules, first, last).forEach((item) => map.set(item.occurrenceAt, [...(map.get(item.occurrenceAt) ?? []), item]));
     return map;
   }, [calendarDays, data.schedules, viewMonth]);
+  const todoByDate = useMemo(() => {
+    const map = new Map<string, Todo[]>();
+    data.todos.forEach((todo) => map.set(todo.createdAt, [...(map.get(todo.createdAt) ?? []), todo]));
+    return map;
+  }, [data.todos]);
 
-  const openAdd = (iso: string) => {
-    setPopover({ mode: 'add', iso });
+  useEffect(() => {
+    if (!popover) return;
+    const closeOnOutsideClick = (event: globalThis.MouseEvent) => {
+      const target = event.target as Element | null;
+      const isCalendarArea = target?.closest('.calendar-grid');
+      const isPopoverArea = target?.closest('.schedule-popover');
+      if (!isCalendarArea && !isPopoverArea) setPopover(null);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [popover]);
+
+  const getPopoverPosition = (event: MouseEvent<HTMLElement>) => {
+    const anchor = event.currentTarget;
+    const wrap = anchor.closest('.calendar-wrap');
+    const anchorRect = anchor.getBoundingClientRect();
+    const wrapRect = wrap?.getBoundingClientRect();
+    if (!wrapRect) return { x: 124, y: 120 };
+    return {
+      x: Math.max(16, Math.min(anchorRect.left - wrapRect.left + 50, wrapRect.width - 320)),
+      y: anchorRect.top - wrapRect.top + anchorRect.height + 10,
+    };
+  };
+
+  const openAdd = (iso: string, event: MouseEvent<HTMLElement>) => {
+    setPopover({ mode: 'add', iso, ...getPopoverPosition(event) });
     setDraft({ title: '', scheduledAt: iso, startTime: '', endTime: '', memo: '', repeat: '없음', tag: '' });
   };
-  const openEdit = (schedule: CalendarEvent) => {
-    setPopover({ mode: 'edit', iso: schedule.occurrenceAt, scheduleId: schedule.id });
+  const openEditTodo = (todo: Todo, event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setPopover({ mode: 'edit', source: 'todo', iso: todo.createdAt, todoId: todo.id, ...getPopoverPosition(event) });
+    setDraft({ title: todo.title, scheduledAt: todo.createdAt, startTime: '', endTime: '', memo: '', repeat: '없음', tag: todo.tag ?? '' });
+  };
+  const openEditSchedule = (schedule: CalendarEvent, event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setPopover({ mode: 'edit', source: 'schedule', iso: schedule.occurrenceAt, scheduleId: schedule.id, ...getPopoverPosition(event) });
     setDraft({ title: schedule.title, scheduledAt: schedule.scheduledAt, startTime: schedule.startTime ?? '', endTime: schedule.endTime ?? '', memo: schedule.memo ?? '', repeat: schedule.repeat ?? '없음', tag: schedule.tag ?? '' });
   };
-  const saveSchedule = () => {
+  const saveTodoFromCalendar = () => {
     const title = draft.title.trim();
     if (!title) return;
-    rememberTag(draft.tag);
-    if (popover?.mode === 'edit') {
-      updateData((current) => ({ ...current, schedules: current.schedules.map((item) => item.id === popover.scheduleId ? { ...item, title, scheduledAt: draft.scheduledAt, startTime: draft.startTime || undefined, endTime: draft.endTime || undefined, memo: draft.memo || undefined, repeat: draft.repeat, tag: draft.tag.trim() || undefined } : item) }));
+    const tag = draft.tag.trim() || 'TODO';
+    rememberTag(tag);
+    if (popover?.mode === 'edit' && popover.source === 'todo' && popover.todoId) {
+      updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === popover.todoId ? { ...item, title, createdAt: draft.scheduledAt, tag } : item) }));
+    } else if (popover?.mode === 'edit' && popover.source === 'schedule' && popover.scheduleId) {
+      updateData((current) => ({ ...current, schedules: current.schedules.map((item) => item.id === popover.scheduleId ? { ...item, title, scheduledAt: draft.scheduledAt, tag } : item) }));
     } else {
-      updateData((current) => ({ ...current, schedules: [...current.schedules, { id: Date.now(), title, scheduledAt: draft.scheduledAt, startTime: draft.startTime || undefined, endTime: draft.endTime || undefined, memo: draft.memo || undefined, repeat: draft.repeat, tag: draft.tag.trim() || undefined }] }));
+      const nextTodo: Todo = { id: Date.now(), title, done: false, createdAt: draft.scheduledAt, tag };
+      updateData((current) => ({ ...current, todos: [nextTodo, ...current.todos] }));
     }
     setPopover(null);
   };
-  const deleteSchedule = () => {
-    if (!popover?.scheduleId || !window.confirm('이 일정을 삭제할까요?')) return;
-    updateData((current) => ({ ...current, schedules: current.schedules.filter((item) => item.id !== popover.scheduleId) }));
-    setPopover(null);
+  const deleteTodoFromCalendar = () => {
+    if (popover?.source === 'todo' && popover.todoId) {
+      if (!window.confirm('이 TODO를 삭제할까요?')) return;
+      updateData((current) => ({ ...current, todos: current.todos.filter((item) => item.id !== popover.todoId) }));
+      setPopover(null);
+      return;
+    }
+    if (popover?.source === 'schedule' && popover.scheduleId) {
+      if (!window.confirm('이 항목을 삭제할까요?')) return;
+      updateData((current) => ({ ...current, schedules: current.schedules.filter((item) => item.id !== popover.scheduleId) }));
+      setPopover(null);
+    }
   };
 
   return (
     <section className="card calendar-wrap">
       <div className="section-head"><div><div className="caption">{formatMonth(viewMonth)}</div><div className="title">이번 달 일정</div></div><div className="month-nav"><button onClick={() => setViewMonth(addMonths(viewMonth, -1))}>‹</button><button onClick={() => setViewMonth(startOfMonth(today))}>오늘</button><button onClick={() => setViewMonth(addMonths(viewMonth, 1))}>›</button></div></div>
       <div className="calendar-grid">
-        {['월', '화', '수', '목', '금', '토', '일'].map((day) => <div className="day-name" key={day}>{day}</div>)}
+        {['일', '월', '화', '수', '목', '금', '토'].map((day) => <div className="day-name" key={day}>{day}</div>)}
         {calendarDays.map(({ date, iso, muted }) => {
           const events = scheduleByDate.get(iso) ?? [];
-          return <button className={`date-cell ${muted ? 'muted' : ''} ${iso === todayIso ? 'today' : ''} ${popover?.iso === iso ? 'selected' : ''}`} key={iso} onClick={() => openAdd(iso)} type="button"><div className="num">{date.getDate()}</div>{events.map((event) => <span className="event-pill" key={`${event.id}-${event.occurrenceAt}`} onClick={(clickEvent) => { clickEvent.stopPropagation(); openEdit(event); }}>{event.isRepeatInstance ? '↻ ' : ''}{event.title}</span>)}</button>;
+          const todos = todoByDate.get(iso) ?? [];
+          return <button className={`date-cell ${muted ? 'muted' : ''} ${iso === todayIso ? 'today' : ''} ${popover?.iso === iso ? 'selected' : ''}`} key={iso} onClick={(event) => openAdd(iso, event)} type="button"><div className="num">{date.getDate()}</div>{todos.map((todo) => <span className={`event-pill todo-pill ${todo.done ? 'done-pill' : ''}`} key={`todo-${todo.id}`} onClick={(event) => openEditTodo(todo, event)}>{todo.title}</span>)}{events.map((event) => <span className="event-pill" key={`${event.id}-${event.occurrenceAt}`} onClick={(clickEvent) => openEditSchedule(event, clickEvent)}>{event.isRepeatInstance ? '↻ ' : ''}{event.title}</span>)}</button>;
         })}
       </div>
-      {popover && <div className={`schedule-popover ${popover.mode === 'add' ? 'add-case' : 'edit-case'}`}><div className="caption">{draft.scheduledAt} · {popover.mode === 'add' ? '빈 날짜 클릭' : '기존 일정 클릭'}</div><div className="title popover-title">{popover.mode === 'add' ? '새 일정 추가' : '일정 수정'}</div><div className="schedule-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="날짜" type="date" value={draft.scheduledAt} onChange={(scheduledAt) => setDraft((current) => ({ ...current, scheduledAt }))} /><div className="time-row"><FieldInput label="시작" type="time" value={draft.startTime} onChange={(startTime) => setDraft((current) => ({ ...current, startTime }))} /><FieldInput label="종료" type="time" value={draft.endTime} onChange={(endTime) => setDraft((current) => ({ ...current, endTime }))} /></div><RepeatSelect value={draft.repeat} onChange={(repeat) => setDraft((current) => ({ ...current, repeat }))} /><FieldTextArea label="메모" value={draft.memo} onChange={(memo) => setDraft((current) => ({ ...current, memo }))} /><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveSchedule} type="button">{popover.mode === 'add' ? '일정 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteSchedule} type="button">삭제</button>}</div></div></div>}
+      {popover && <div className="schedule-popover todo-calendar-popover" style={{ left: popover.x, top: popover.y }}><div className="caption">{draft.scheduledAt}</div><div className="title popover-title">{popover.mode === 'add' ? '새 TODO 추가' : 'TODO 수정'}</div><div className="schedule-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="날짜" type="date" value={draft.scheduledAt} onChange={(scheduledAt) => setDraft((current) => ({ ...current, scheduledAt }))} /><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveTodoFromCalendar} type="button">{popover.mode === 'add' ? 'TODO 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteTodoFromCalendar} type="button">삭제</button>}</div></div></div>}
     </section>
   );
 }
@@ -435,7 +483,7 @@ function WorkSummaryCard({ data }: { data: ToodlyData }) {
   const pending = data.todos.filter((todo) => !todo.done).length;
   const carry = data.todos.filter((todo) => !todo.done && todo.createdAt < todayIso).length;
   const rate = Math.round((data.todos.filter((todo) => todo.done).length / Math.max(data.todos.length, 1)) * 100);
-  return <aside><section className="card"><div className="section-head"><div><div className="caption">AI 없어도 표시</div><div className="title">작업내역</div></div></div><div className="summary-list"><div className="summary-item"><div className="badge blue">W</div><div><strong>이번 주 완료 {weekDone}개</strong><span>이월 {carry}개 · 진행중 {pending}개</span></div><b>{rate}%</b></div><div className="summary-item"><div className="badge green">M</div><div><strong>이번 달 완료 {monthDone}개</strong><span>이월 {carry}개 · 일정 {monthScheduleCount}개</span></div><b>{rate}%</b></div></div></section></aside>;
+  return <aside><section className="card"><div className="section-head"><div><div className="caption">로컬 집계</div><div className="title">작업내역</div></div></div><div className="summary-list"><div className="summary-item"><div className="badge blue">W</div><div><strong>이번 주 완료 {weekDone}개</strong><span>이월 {carry}개 · 진행중 {pending}개</span></div><b>{rate}%</b></div><div className="summary-item"><div className="badge green">M</div><div><strong>이번 달 완료 {monthDone}개</strong><span>이월 {carry}개 · 일정 {monthScheduleCount}개</span></div><b>{rate}%</b></div></div></section></aside>;
 }
 
 function TagTaskList({ groups }: { groups: TagGroup[] }) {
@@ -466,7 +514,7 @@ function WeeklyView({ data, updateData }: { data: ToodlyData; updateData: (updat
       setLoading(false);
     }
   };
-  return <section className="card"><div className="screen-label">탭 화면 · 주간 정리</div><div className="section-head spaced"><div><div className="caption">{toIsoDate(weekStart)} ~ {toIsoDate(weekEnd)}</div><div className="title">주간 정리</div></div><div className="badge blue">W</div></div><div className="report-block"><div className="report-section"><h3>이번 주 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 주 작업 예정</h3><TagTaskList groups={nextGroups} /></div><div className="ai-summary-box"><div className="ai-summary-head"><b>AI가 정리한 형태</b><button className="ghost-btn" disabled={loading} onClick={requestAiSummary} type="button">{loading ? '정리중' : 'AI로 다시 정리'}</button></div>{error && <div className="error-text">{error}</div>}<div className="ai-summary-group"><div className="ai-summary-section"><h4>이번 주 작업내역</h4><ul>{(aiSummary?.doneLines ?? (doneGroups.length ? doneGroups.map((group) => `${group.tag}: ${group.tasks.join(', ')} 작업을 완료했습니다.`) : ['완료된 작업이 없습니다.'])).map((line) => <li key={line}>{line}</li>)}</ul></div><div className="ai-summary-section"><h4>다음 주 작업내역</h4><ul>{(aiSummary?.nextLines ?? (nextGroups.length ? nextGroups.map((group) => `${group.tag}: ${group.tasks.join(', ')} 작업을 이어갑니다.`) : ['예정 작업이 없습니다.'])).map((line) => <li key={line}>{line}</li>)}</ul></div></div></div></div></section>;
+  return <section className="card"><div className="screen-label">탭 화면 · 주간 정리</div><div className="section-head spaced"><div><div className="caption">{toIsoDate(weekStart)} ~ {toIsoDate(weekEnd)}</div><div className="title">주간 정리</div></div><div className="badge blue">W</div></div><div className="report-block"><div className="report-section"><h3>이번 주 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 주 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
 }
 
 function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void }) {
@@ -494,13 +542,13 @@ function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (upda
       setLoading(false);
     }
   };
-  return <section className="card"><div className="screen-label">탭 화면 · 월간 정리</div><div className="section-head spaced"><div><div className="caption">{formatMonth(today)}</div><div className="title">월간 정리</div></div><div className="badge green">M</div></div><div className="report-block"><div className="report-section"><h3>이번 달 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 달 작업 예정</h3><TagTaskList groups={nextGroups} /></div><div className="ai-summary-box"><div className="ai-summary-head"><b>AI가 정리한 형태</b><button className="ghost-btn" disabled={loading} onClick={requestAiSummary} type="button">{loading ? '정리중' : 'AI로 다시 정리'}</button></div>{error && <div className="error-text">{error}</div>}<ul>{(aiSummary?.doneLines ?? (doneGroups.length ? doneGroups.map((group) => `${group.tag}: ${group.tasks.join(', ')} 항목을 정리했습니다.`) : ['정리할 항목이 없습니다.'])).map((line) => <li key={line}>{line}</li>)}</ul></div></div></section>;
+  return <section className="card"><div className="screen-label">탭 화면 · 월간 정리</div><div className="section-head spaced"><div><div className="caption">{formatMonth(today)}</div><div className="title">월간 정리</div></div><div className="badge green">M</div></div><div className="report-block"><div className="report-section"><h3>이번 달 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 달 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
 }
 
 function MainView({ data, updateData, rememberTag }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void }) {
   const [tab, setTab] = useState<Tab>('calendar');
   const [viewMonth, setViewMonth] = useState(startOfMonth(today));
-  return <main className="stage"><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">일정과 작업내역</div></div><div className="top-actions"><AiControl data={data} updateData={updateData} /><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header><UpdateNotice />{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
+  return <main className="stage"><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">일정과 작업내역</div></div><div className="top-actions"><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header>{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
 }
 
 function App() {

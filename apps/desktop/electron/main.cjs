@@ -550,7 +550,7 @@ function createMainWindow() {
     minHeight: 720,
     title: 'Toodly',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 54, y: 50 },
+    trafficLightPosition: { x: 22, y: 20 },
     backgroundColor: '#f5f7fb',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
