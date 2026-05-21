@@ -26,15 +26,13 @@ const PROTOCOL = 'toodly';
 
 const initialData = {
   todos: [
-    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, createdAt: '2026-05-17', tag: '기획' },
-    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, createdAt: '2026-05-18', tag: '기획' },
-    { id: 3, title: '앱 이름 확정', done: true, createdAt: '2026-05-18', completedAt: '2026-05-18', tag: '기록' },
-  ],
-  schedules: [
-    { id: 1, scheduledAt: '2026-05-05', title: '어린이날', tag: '휴일', repeat: '없음' },
-    { id: 2, scheduledAt: '2026-05-14', title: '회의', tag: '회의', startTime: '10:00', endTime: '11:00', repeat: '없음' },
-    { id: 3, scheduledAt: '2026-05-18', title: 'Toodly 설계', tag: '기획', startTime: '14:00', endTime: '15:00', memo: '전체화면/고정핀 구조 정리', repeat: '없음' },
-    { id: 4, scheduledAt: '2026-05-22', title: '리뷰', tag: '회고', repeat: '없음' },
+    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, startDate: '2026-05-17', status: 'active', tag: '기획' },
+    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, startDate: '2026-05-18', status: 'active', tag: '기획' },
+    { id: 3, title: '앱 이름 확정', done: true, startDate: '2026-05-18', status: 'ended', completedAt: '2026-05-18', tag: '기록' },
+    { id: 101, title: '어린이날', done: true, startDate: '2026-05-05', endDate: '2026-05-05', status: 'ended', completedAt: '2026-05-05', tag: '휴일' },
+    { id: 102, title: '회의', done: true, startDate: '2026-05-14', endDate: '2026-05-14', status: 'ended', completedAt: '2026-05-14', tag: '회의' },
+    { id: 103, title: 'Toodly 설계', done: false, startDate: '2026-05-18', endDate: '2026-05-20', status: 'ended', tag: '기획', memo: '전체화면/고정핀 구조 정리' },
+    { id: 104, title: '리뷰', done: false, startDate: '2026-05-22', endDate: '2026-05-22', status: 'active', tag: '회고' },
   ],
   tags: ['기획', '기술검토', '기록', '회의', '회사', '회고', '휴일', 'TODO'],
   ai: { auth: { connected: false }, summaries: {} },
@@ -80,12 +78,25 @@ async function hasToken() {
   return Boolean(await getTokenPayload());
 }
 
-function normalizeData(data) {
+function normalizeTodo(todo) {
+  const startDate = todo?.startDate ?? todo?.createdAt ?? new Date().toISOString().slice(0, 10);
   return {
-    ...initialData,
-    ...data,
-    todos: data?.todos ?? initialData.todos,
-    schedules: data?.schedules ?? initialData.schedules,
+    id: todo?.id ?? Date.now(),
+    title: todo?.title ?? '',
+    done: Boolean(todo?.done),
+    startDate,
+    ...(todo?.endDate ? { endDate: todo.endDate } : {}),
+    status: todo?.status ?? (todo?.done ? 'ended' : 'active'),
+    ...(todo?.completedAt ? { completedAt: todo.completedAt } : {}),
+    ...(todo?.tag ? { tag: todo.tag } : {}),
+    ...(todo?.memo ? { memo: todo.memo } : {}),
+  };
+}
+
+function normalizeData(data) {
+  const todos = (data?.todos ?? initialData.todos).map(normalizeTodo);
+  return {
+    todos,
     tags: data?.tags ?? initialData.tags,
     ai: {
       auth: data?.ai?.auth ?? { connected: false },
@@ -285,24 +296,15 @@ function createSchema() {
       title TEXT NOT NULL,
       done INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      status TEXT,
       completed_at TEXT,
-      tag TEXT
+      tag TEXT,
+      memo TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_todos_done_created_at ON todos(done, created_at);
     CREATE INDEX IF NOT EXISTS idx_todos_tag ON todos(tag);
-    CREATE TABLE IF NOT EXISTS schedules (
-      id INTEGER PRIMARY KEY,
-      scheduled_at TEXT NOT NULL,
-      title TEXT NOT NULL,
-      start_time TEXT,
-      end_time TEXT,
-      memo TEXT,
-      repeat TEXT NOT NULL DEFAULT '없음',
-      tag TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_schedules_scheduled_at ON schedules(scheduled_at);
-    CREATE INDEX IF NOT EXISTS idx_schedules_tag ON schedules(tag);
-    CREATE INDEX IF NOT EXISTS idx_schedules_repeat ON schedules(repeat);
     CREATE TABLE IF NOT EXISTS tags (
       name TEXT PRIMARY KEY,
       created_at TEXT NOT NULL
@@ -326,19 +328,73 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_ai_summaries_range_created_at ON ai_summaries(range, created_at);
   `);
+  ensureTodoColumns();
+}
+
+function tableExists(name) {
+  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+}
+
+function legacyScheduleDataToTodos(schedules = []) {
+  return schedules.map((item) => ({
+    id: item.id + 100_000,
+    title: item.title,
+    done: Boolean(item.done),
+    startDate: item.scheduledAt ?? item.scheduled_at,
+    ...(item.endedAt || item.endDate ? { endDate: item.endedAt ?? item.endDate } : {}),
+    status: item.status ?? (item.endedAt || item.endDate ? 'ended' : 'active'),
+    ...(item.completedAt ? { completedAt: item.completedAt } : {}),
+    ...(item.tag ? { tag: item.tag } : {}),
+    ...(item.memo ? { memo: item.memo } : {}),
+  })).filter((item) => item.title && item.startDate);
+}
+
+function loadLegacyScheduleTodos() {
+  if (!tableExists('schedules')) return [];
+  return db.prepare('SELECT id, scheduled_at, title, memo, tag FROM schedules ORDER BY scheduled_at, id').all()
+    .map((row) => ({
+      id: row.id + 100_000,
+      title: row.title,
+      done: false,
+      startDate: row.scheduled_at,
+      status: 'active',
+      ...(row.tag ? { tag: row.tag } : {}),
+      ...(row.memo ? { memo: row.memo } : {}),
+    }));
+}
+
+function ensureTodoColumns() {
+  const columns = new Set(db.prepare('PRAGMA table_info(todos)').all().map((column) => column.name));
+  const missing = [
+    ['start_date', 'TEXT'],
+    ['end_date', 'TEXT'],
+    ['status', 'TEXT'],
+    ['memo', 'TEXT'],
+  ].filter(([name]) => !columns.has(name));
+  for (const [name, type] of missing) {
+    db.exec(`ALTER TABLE todos ADD COLUMN ${name} ${type}`);
+  }
 }
 
 function migrateLegacyStateIfNeeded() {
   const version = db.prepare('SELECT value FROM app_meta WHERE key = ?').get('storage_version')?.value;
-  if (version === '2') return;
+  if (version === '3') return;
 
   const legacy = db.prepare('SELECT value FROM app_state WHERE key = ?').get('state');
+  const legacyValue = legacy ? JSON.parse(legacy.value) : undefined;
   const hasRows = db.prepare('SELECT COUNT(*) AS count FROM todos').get().count > 0
-    || db.prepare('SELECT COUNT(*) AS count FROM schedules').get().count > 0
+    || (tableExists('schedules') && db.prepare('SELECT COUNT(*) AS count FROM schedules').get().count > 0)
     || db.prepare('SELECT COUNT(*) AS count FROM tags').get().count > 0;
-  const source = legacy ? normalizeData(JSON.parse(legacy.value)) : (hasRows ? loadData() : initialData);
-  saveData(source, false);
-  db.prepare('INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)').run('storage_version', '2');
+  const source = legacyValue ? normalizeData(legacyValue) : (hasRows ? loadData() : initialData);
+  const convertedTodos = [
+    ...legacyScheduleDataToTodos(legacyValue?.schedules),
+    ...loadLegacyScheduleTodos(),
+  ];
+  const existingIds = new Set(source.todos.map((todo) => todo.id));
+  const todos = [...source.todos, ...convertedTodos.filter((todo) => !existingIds.has(todo.id)).map(normalizeTodo)];
+  saveData({ ...source, todos }, false);
+  if (tableExists('schedules')) db.exec('DROP TABLE schedules');
+  db.prepare('INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)').run('storage_version', '3');
 }
 
 function loadData() {
@@ -347,25 +403,17 @@ function loadData() {
 }
 
 function loadSqliteData() {
-  const todos = db.prepare('SELECT id, title, done, created_at, completed_at, tag FROM todos ORDER BY created_at DESC, id DESC').all()
+  const todos = db.prepare('SELECT id, title, done, created_at, start_date, end_date, status, completed_at, tag, memo FROM todos ORDER BY COALESCE(start_date, created_at) DESC, id DESC').all()
     .map((row) => ({
       id: row.id,
       title: row.title,
       done: Boolean(row.done),
-      createdAt: row.created_at,
+      startDate: row.start_date ?? row.created_at,
+      ...(row.end_date ? { endDate: row.end_date } : {}),
+      status: row.status ?? (row.done ? 'ended' : 'active'),
       ...(row.completed_at ? { completedAt: row.completed_at } : {}),
       ...(row.tag ? { tag: row.tag } : {}),
-    }));
-  const schedules = db.prepare('SELECT id, scheduled_at, title, start_time, end_time, memo, repeat, tag FROM schedules ORDER BY scheduled_at, id').all()
-    .map((row) => ({
-      id: row.id,
-      scheduledAt: row.scheduled_at,
-      title: row.title,
-      ...(row.start_time ? { startTime: row.start_time } : {}),
-      ...(row.end_time ? { endTime: row.end_time } : {}),
       ...(row.memo ? { memo: row.memo } : {}),
-      repeat: row.repeat || '없음',
-      ...(row.tag ? { tag: row.tag } : {}),
     }));
   const tags = db.prepare('SELECT name FROM tags ORDER BY name').all().map((row) => row.name);
   const authRow = db.prepare('SELECT connected, provider, expires_at, storage, pending, error FROM ai_auth_cache WHERE id = 1').get();
@@ -384,7 +432,6 @@ function loadSqliteData() {
 
   return normalizeData({
     todos,
-    schedules,
     tags,
     ai: {
       auth: authRow ? {
@@ -415,20 +462,26 @@ function saveData(data, notify = true) {
 function saveSqliteData(data) {
   db.exec('BEGIN IMMEDIATE');
   try {
-    db.exec('DELETE FROM todos; DELETE FROM schedules; DELETE FROM tags; DELETE FROM ai_auth_cache; DELETE FROM ai_summaries;');
+    db.exec('DELETE FROM todos; DELETE FROM tags; DELETE FROM ai_auth_cache; DELETE FROM ai_summaries;');
 
-    const insertTodo = db.prepare('INSERT INTO todos (id, title, done, created_at, completed_at, tag) VALUES (?, ?, ?, ?, ?, ?)');
+    const insertTodo = db.prepare('INSERT INTO todos (id, title, done, created_at, start_date, end_date, status, completed_at, tag, memo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     for (const todo of data.todos) {
-      insertTodo.run(todo.id, todo.title, todo.done ? 1 : 0, todo.createdAt, todo.completedAt ?? null, todo.tag ?? null);
-    }
-
-    const insertSchedule = db.prepare('INSERT INTO schedules (id, scheduled_at, title, start_time, end_time, memo, repeat, tag) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const schedule of data.schedules) {
-      insertSchedule.run(schedule.id, schedule.scheduledAt, schedule.title, schedule.startTime ?? null, schedule.endTime ?? null, schedule.memo ?? null, schedule.repeat ?? '없음', schedule.tag ?? null);
+      insertTodo.run(
+        todo.id,
+        todo.title,
+        todo.done ? 1 : 0,
+        todo.startDate,
+        todo.startDate,
+        todo.endDate ?? null,
+        todo.status ?? (todo.done ? 'ended' : 'active'),
+        todo.completedAt ?? null,
+        todo.tag ?? null,
+        todo.memo ?? null,
+      );
     }
 
     const insertTag = db.prepare('INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)');
-    const tagNames = new Set([...data.tags, ...data.todos.map((todo) => todo.tag), ...data.schedules.map((schedule) => schedule.tag)].filter(Boolean));
+    const tagNames = new Set([...data.tags, ...data.todos.map((todo) => todo.tag)].filter(Boolean));
     for (const tag of tagNames) insertTag.run(tag, new Date().toISOString());
 
     const auth = data.ai?.auth ?? { connected: false };

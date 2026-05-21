@@ -2,13 +2,13 @@ import { type MouseEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-type Todo = { id: number; title: string; done: boolean; createdAt: string; completedAt?: string; tag?: string };
-type Schedule = { id: number; scheduledAt: string; title: string; startTime?: string; endTime?: string; memo?: string; repeat?: string; tag?: string };
-type CalendarEvent = Schedule & { occurrenceAt: string; isRepeatInstance?: boolean };
+type Todo = { id: number; title: string; done: boolean; startDate: string; endDate?: string; status?: 'active' | 'ended'; completedAt?: string; tag?: string; memo?: string };
+type CalendarTodo = Todo & { occurrenceAt: string; rangePosition?: 'single' | 'start' | 'middle' | 'end'; lane?: number };
 type AiSummary = { id: string; range: 'week' | 'month'; provider: string; createdAt: string; doneLines: string[]; nextLines: string[] };
 type AiAuth = { connected: boolean; provider?: string; expiresAt?: string; storage?: string; pending?: boolean; error?: string };
-type ToodlyData = { todos: Todo[]; schedules: Schedule[]; tags: string[]; ai?: { auth: AiAuth; summaries: Partial<Record<'week' | 'month', AiSummary>> } };
-type Draft = { title: string; scheduledAt: string; startTime: string; endTime: string; memo: string; repeat: string; tag: string };
+type ToodlyData = { todos: Todo[]; tags: string[]; ai?: { auth: AiAuth; summaries: Partial<Record<'week' | 'month', AiSummary>> } };
+type PersistedToodlyData = Partial<ToodlyData> & { todos?: Array<Partial<Todo> & { createdAt?: string }> };
+type Draft = { title: string; startDate: string; endDate: string; status: 'active' | 'ended'; tag: string };
 type TagGroup = { tag: string; tasks: string[] };
 type Tab = 'calendar' | 'week' | 'month';
 type UpdateStatus = { state: 'idle' | 'disabled' | 'checking' | 'available' | 'downloading' | 'ready' | 'installing' | 'latest' | 'error'; message: string; version?: string; progress?: number };
@@ -40,15 +40,14 @@ const todayIso = toIsoDate(today);
 const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 const initialData: ToodlyData = {
   todos: [
-    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, createdAt: '2026-05-17', tag: '기획' },
-    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, createdAt: '2026-05-18', tag: '기획' },
-    { id: 3, title: '앱 이름 확정', done: true, createdAt: '2026-05-18', completedAt: '2026-05-18', tag: '기록' },
-  ],
-  schedules: [
-    { id: 1, scheduledAt: '2026-05-05', title: '어린이날', tag: '휴일', repeat: '없음' },
-    { id: 2, scheduledAt: '2026-05-14', title: '회의', tag: '회의', startTime: '10:00', endTime: '11:00', repeat: '없음' },
-    { id: 3, scheduledAt: '2026-05-18', title: 'Toodly 설계', tag: '기획', startTime: '14:00', endTime: '15:00', memo: '전체화면/고정핀 구조 정리', repeat: '없음' },
-    { id: 4, scheduledAt: '2026-05-22', title: '리뷰', tag: '회고', repeat: '없음' },
+    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, startDate: '2026-05-17', status: 'active', tag: '기획' },
+    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, startDate: '2026-05-18', status: 'active', tag: '기획' },
+    { id: 3, title: '앱 이름 확정', done: true, startDate: '2026-05-18', status: 'ended', completedAt: '2026-05-18', tag: '기록' },
+    { id: 101, title: '어린이날', done: true, startDate: '2026-05-05', endDate: '2026-05-05', status: 'ended', completedAt: '2026-05-05', tag: '휴일' },
+    { id: 102, title: '회의', done: true, startDate: '2026-05-14', endDate: '2026-05-14', status: 'ended', completedAt: '2026-05-14', tag: '회의' },
+    { id: 103, title: 'Toodly 설계', done: false, startDate: '2026-05-18', endDate: '2026-05-20', status: 'ended', tag: '기획', memo: '전체화면/고정핀 구조 정리' },
+    { id: 105, title: '2주 테스트 일정', done: false, startDate: '2026-05-11', endDate: '2026-05-24', status: 'ended', tag: '기획', memo: '주간이 넘어가는 기간 TODO 테스트' },
+    { id: 104, title: '리뷰', done: false, startDate: '2026-05-22', endDate: '2026-05-22', status: 'active', tag: '회고' },
   ],
   tags: ['기획', '기술검토', '기록', '회의', '회사', '회고', '휴일', 'TODO'],
   ai: { auth: { connected: false }, summaries: {} },
@@ -105,26 +104,111 @@ function isSameDayOfMonth(a: Date, b: Date) {
   return a.getDate() === b.getDate();
 }
 
-function scheduleOccursOn(schedule: Schedule, iso: string) {
-  const date = parseIsoDate(iso);
-  const start = parseIsoDate(schedule.scheduledAt);
-  if (date < start) return false;
-  const repeat = schedule.repeat ?? '없음';
-  if (repeat === '없음') return schedule.scheduledAt === iso;
-  if (repeat === '매일') return true;
-  if (repeat === '매주') return date.getDay() === start.getDay();
-  if (repeat === '매월') return isSameDayOfMonth(date, start);
-  return schedule.scheduledAt === iso;
+function getTodoStartIso(todo: Pick<Todo, 'startDate'>) {
+  return todo.startDate;
 }
 
-function expandSchedulesBetween(schedules: Schedule[], start: Date, end: Date): CalendarEvent[] {
-  const events: CalendarEvent[] = [];
-  for (const schedule of schedules) {
+function getTodoEndIso(todo: Todo) {
+  return todo.endDate ?? todo.startDate;
+}
+
+function getRangePosition(startIso: string, endIso: string, currentIso: string): CalendarTodo['rangePosition'] {
+  const day = parseIsoDate(currentIso).getDay();
+  const isSegmentStart = currentIso === startIso || day === 0;
+  const isSegmentEnd = currentIso === endIso || day === 6;
+  if (isSegmentStart && isSegmentEnd) return 'single';
+  if (isSegmentStart) return 'start';
+  if (isSegmentEnd) return 'end';
+  return 'middle';
+}
+
+function getTodoDurationDays(todo: Todo) {
+  const start = parseIsoDate(getTodoStartIso(todo)).getTime();
+  const end = parseIsoDate(getTodoEndIso(todo)).getTime();
+  return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
+function getCalendarWeekStartIso(iso: string) {
+  const date = parseIsoDate(iso);
+  date.setDate(date.getDate() - date.getDay());
+  return toIsoDate(date);
+}
+
+function getTodoSegmentStartIso(todo: CalendarTodo) {
+  const weekStartIso = getCalendarWeekStartIso(todo.occurrenceAt);
+  return todo.startDate > weekStartIso ? todo.startDate : weekStartIso;
+}
+
+function getCalendarWeekEndIso(iso: string) {
+  const date = parseIsoDate(getCalendarWeekStartIso(iso));
+  date.setDate(date.getDate() + 6);
+  return toIsoDate(date);
+}
+
+function getTodoSegmentEndIso(todo: CalendarTodo) {
+  const weekEndIso = getCalendarWeekEndIso(todo.occurrenceAt);
+  const endIso = getTodoEndIso(todo);
+  return endIso < weekEndIso ? endIso : weekEndIso;
+}
+
+function rangesOverlap(a: { start: string; end: string }, b: { start: string; end: string }) {
+  return a.start <= b.end && b.start <= a.end;
+}
+
+function assignCalendarTodoLanes(items: CalendarTodo[]) {
+  const segmentsByWeek = new Map<string, Array<{ key: string; start: string; end: string; title: string; duration: number }>>();
+  items.forEach((item) => {
+    const weekStart = getCalendarWeekStartIso(item.occurrenceAt);
+    const key = `${item.id}-${weekStart}`;
+    if (segmentsByWeek.get(weekStart)?.some((segment) => segment.key === key)) return;
+    segmentsByWeek.set(weekStart, [...(segmentsByWeek.get(weekStart) ?? []), { key, start: getTodoSegmentStartIso(item), end: getTodoSegmentEndIso(item), title: item.title, duration: getTodoDurationDays(item) }]);
+  });
+
+  const laneBySegment = new Map<string, number>();
+  segmentsByWeek.forEach((segments) => {
+    const lanes: Array<Array<{ start: string; end: string }>> = [];
+    segments
+      .sort((a, b) => b.duration - a.duration || a.start.localeCompare(b.start) || a.title.localeCompare(b.title))
+      .forEach((segment) => {
+        const lane = lanes.findIndex((itemsInLane) => itemsInLane.every((item) => !rangesOverlap(item, segment)));
+        const nextLane = lane === -1 ? lanes.length : lane;
+        lanes[nextLane] = [...(lanes[nextLane] ?? []), segment];
+        laneBySegment.set(segment.key, nextLane);
+      });
+  });
+
+  return items.map((item) => ({ ...item, lane: laneBySegment.get(`${item.id}-${getCalendarWeekStartIso(item.occurrenceAt)}`) ?? 0 }));
+}
+
+function shouldShowRangeTitle(todo: CalendarTodo) {
+  return todo.rangePosition === 'single' || todo.rangePosition === 'start';
+}
+
+function todoOccursOn(todo: Todo, iso: string) {
+  const date = parseIsoDate(iso);
+  const start = parseIsoDate(getTodoStartIso(todo));
+  const end = parseIsoDate(getTodoEndIso(todo));
+  return date >= start && date <= end;
+}
+
+function todoOverlaps(todo: Todo, start: Date, end: Date) {
+  return isBetweenIso(todo.startDate, start, end) || isBetweenIso(getTodoEndIso(todo), start, end) || (todo.startDate <= toIsoDate(start) && getTodoEndIso(todo) >= toIsoDate(end));
+}
+
+function isTodoDone(todo: Todo) {
+  return todo.done || todo.status === 'ended';
+}
+
+function expandTodosBetween(todos: Todo[], start: Date, end: Date): CalendarTodo[] {
+  const events: CalendarTodo[] = [];
+  for (const todo of todos) {
     const cursor = new Date(start);
     while (cursor <= end) {
       const iso = toIsoDate(cursor);
-      if (scheduleOccursOn(schedule, iso)) {
-        events.push({ ...schedule, occurrenceAt: iso, isRepeatInstance: (schedule.repeat ?? '없음') !== '없음' && schedule.scheduledAt !== iso });
+      if (todoOccursOn(todo, iso)) {
+        const startIso = getTodoStartIso(todo);
+        const endIso = getTodoEndIso(todo);
+        events.push({ ...todo, occurrenceAt: iso, rangePosition: getRangePosition(startIso, endIso, iso) });
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -163,8 +247,24 @@ function groupByTag(items: Array<{ tag?: string; title: string }>): TagGroup[] {
 }
 
 
-function normalizeData(data: ToodlyData): ToodlyData {
-  return { ...data, ai: data.ai ?? { auth: { connected: false }, summaries: {} } };
+function normalizeTodo(todo: Partial<Todo> & { createdAt?: string }): Todo {
+  const startDate = todo.startDate ?? todo.createdAt ?? todayIso;
+  return {
+    id: todo.id ?? Date.now(),
+    title: todo.title ?? '',
+    done: todo.done ?? false,
+    startDate,
+    endDate: todo.endDate,
+    status: todo.status ?? (todo.done ? 'ended' : 'active'),
+    completedAt: todo.completedAt,
+    tag: todo.tag,
+    memo: todo.memo,
+  };
+}
+
+function normalizeData(data: PersistedToodlyData): ToodlyData {
+  const todos = (data.todos ?? []).map(normalizeTodo);
+  return { todos, tags: data.tags ?? initialData.tags, ai: data.ai ?? { auth: { connected: false }, summaries: {} } };
 }
 
 function buildLocalAiSummary(range: 'week' | 'month', doneGroups: TagGroup[], nextGroups: TagGroup[]): AiSummary {
@@ -181,7 +281,7 @@ function buildLocalAiSummary(range: 'week' | 'month', doneGroups: TagGroup[], ne
 function localLoad() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? normalizeData(JSON.parse(saved) as ToodlyData) : initialData;
+    return saved ? normalizeData(JSON.parse(saved) as PersistedToodlyData) : initialData;
   } catch {
     return initialData;
   }
@@ -199,7 +299,7 @@ function useToodlyData() {
     setData((current) => {
       const next = normalizeData(updater(current));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      void window.toodly?.setData(next).catch(() => undefined);
+      void window.toodly?.setData(next).catch((error) => console.error('Toodly data save failed', error));
       return next;
     });
   };
@@ -293,14 +393,18 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
   const addTodo = () => {
     const title = quickTitle.trim();
     if (!title) return;
-    const nextTodo = { id: Date.now(), title, done: false, createdAt: currentIso, tag: 'TODO' };
+    const nextTodo = { id: Date.now(), title, done: false, startDate: currentIso, status: 'active' as const, tag: 'TODO' };
     rememberTag('TODO');
     updateData((current) => ({ ...current, todos: [nextTodo, ...current.todos] }));
     setQuickTitle('');
   };
 
   const toggleDone = (id: number) => {
-    updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === id ? { ...item, done: !item.done, completedAt: item.done ? undefined : currentIso } : item) }));
+    updateData((current) => ({ ...current, todos: current.todos.map((item) => {
+      if (item.id !== id) return item;
+      const done = !item.done;
+      return { ...item, done, status: done ? 'ended' : 'active', endDate: done ? currentIso : item.endDate, completedAt: done ? currentIso : undefined };
+    }) }));
   };
   const saveTodo = () => {
     if (!selected || !editTitle.trim()) return;
@@ -314,7 +418,7 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
     setSelectedId(0);
   };
 
-  const carryCount = visibleTodos.filter((todo) => !todo.done && todo.createdAt < currentIso).length;
+  const carryCount = visibleTodos.filter((todo) => !todo.done && todo.startDate < currentIso).length;
 
   return (
     <aside className={`panel pin ${embedded ? '' : 'pin-standalone'}`}>
@@ -322,7 +426,7 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
       <form className="quick-input" onSubmit={(event) => { event.preventDefault(); addTodo(); }}><input placeholder="할 일을 바로 입력" value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} /><button>추가</button></form>
       <section className="todo-list">
         {!visibleTodos.length && <div className="empty-card">아직 TODO가 없습니다.</div>}
-        {visibleTodos.map((todo) => <div className="todo-block" key={todo.id}><div className={`todo ${!todo.done && todo.createdAt < currentIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`}><input aria-label={`${todo.title} 완료`} type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} /><button className={`todo-text ${todo.done ? 'done' : ''}`} onClick={() => setSelectedId(selected?.id === todo.id ? 0 : todo.id)} type="button"><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : `#${todo.tag ?? 'TODO'}`}</span></button></div>{selected?.id === todo.id && <div className="todo-edit-popover"><div className="caption">TODO 텍스트 클릭</div><div className="title small-title">TODO 수정</div><div className="schedule-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">생성일: {selected.createdAt}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}</div>)}
+        {visibleTodos.map((todo) => <div className="todo-block" key={todo.id}><div className={`todo ${!todo.done && todo.startDate < currentIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`}><input aria-label={`${todo.title} 완료`} type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} /><button className={`todo-text ${todo.done ? 'done' : ''}`} onClick={() => setSelectedId(selected?.id === todo.id ? 0 : todo.id)} type="button"><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : `#${todo.tag ?? 'TODO'}`}</span></button></div>{selected?.id === todo.id && <div className="todo-edit-popover"><div className="caption">TODO 텍스트 클릭</div><div className="title small-title">TODO 수정</div><div className="todo-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">시작일: {selected.startDate}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}</div>)}
       </section>
       <div className="pin-footer"><div className="mini-stat"><b>{data.todos.filter((todo) => !todo.done).length}</b><span>오늘 할 일</span></div><div className="mini-stat"><b>{carryCount}</b><span>이월된 일</span></div></div>
     </aside>
@@ -330,28 +434,23 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
 }
 
 function CalendarView({ data, updateData, rememberTag, viewMonth, setViewMonth }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void; viewMonth: Date; setViewMonth: (date: Date) => void }) {
-  const [popover, setPopover] = useState<{ mode: 'add' | 'edit'; source?: 'todo' | 'schedule'; iso: string; todoId?: number; scheduleId?: number; x: number; y: number } | null>(null);
-  const [draft, setDraft] = useState<Draft>({ title: '', scheduledAt: todayIso, startTime: '', endTime: '', memo: '', repeat: '없음', tag: '' });
+  const [popover, setPopover] = useState<{ mode: 'add' | 'edit'; iso: string; todoId?: number; x: number; y: number } | null>(null);
+  const [draft, setDraft] = useState<Draft>({ title: '', startDate: todayIso, endDate: '', status: 'active', tag: '' });
   const calendarDays = useMemo(() => buildCalendarDays(viewMonth), [viewMonth]);
-  const scheduleByDate = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
+  const todoByDate = useMemo(() => {
+    const map = new Map<string, CalendarTodo[]>();
     const first = calendarDays[0]?.date ?? startOfMonth(viewMonth);
     const last = calendarDays[calendarDays.length - 1]?.date ?? endOfMonth(viewMonth);
-    expandSchedulesBetween(data.schedules, first, last).forEach((item) => map.set(item.occurrenceAt, [...(map.get(item.occurrenceAt) ?? []), item]));
+    assignCalendarTodoLanes(expandTodosBetween(data.todos, first, last)).forEach((item) => map.set(item.occurrenceAt, [...(map.get(item.occurrenceAt) ?? []), item]));
     return map;
-  }, [calendarDays, data.schedules, viewMonth]);
-  const todoByDate = useMemo(() => {
-    const map = new Map<string, Todo[]>();
-    data.todos.forEach((todo) => map.set(todo.createdAt, [...(map.get(todo.createdAt) ?? []), todo]));
-    return map;
-  }, [data.todos]);
+  }, [calendarDays, data.todos, viewMonth]);
 
   useEffect(() => {
     if (!popover) return;
     const closeOnOutsideClick = (event: globalThis.MouseEvent) => {
       const target = event.target as Element | null;
       const isCalendarArea = target?.closest('.calendar-grid');
-      const isPopoverArea = target?.closest('.schedule-popover');
+      const isPopoverArea = target?.closest('.todo-popover');
       if (!isCalendarArea && !isPopoverArea) setPopover(null);
     };
     document.addEventListener('mousedown', closeOnOutsideClick);
@@ -372,59 +471,54 @@ function CalendarView({ data, updateData, rememberTag, viewMonth, setViewMonth }
 
   const openAdd = (iso: string, event: MouseEvent<HTMLElement>) => {
     setPopover({ mode: 'add', iso, ...getPopoverPosition(event) });
-    setDraft({ title: '', scheduledAt: iso, startTime: '', endTime: '', memo: '', repeat: '없음', tag: '' });
+    setDraft({ title: '', startDate: iso, endDate: '', status: 'active', tag: '' });
   };
-  const openEditTodo = (todo: Todo, event: MouseEvent<HTMLElement>) => {
+  const openEditTodo = (todo: CalendarTodo, event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
-    setPopover({ mode: 'edit', source: 'todo', iso: todo.createdAt, todoId: todo.id, ...getPopoverPosition(event) });
-    setDraft({ title: todo.title, scheduledAt: todo.createdAt, startTime: '', endTime: '', memo: '', repeat: '없음', tag: todo.tag ?? '' });
-  };
-  const openEditSchedule = (schedule: CalendarEvent, event: MouseEvent<HTMLElement>) => {
-    event.stopPropagation();
-    setPopover({ mode: 'edit', source: 'schedule', iso: schedule.occurrenceAt, scheduleId: schedule.id, ...getPopoverPosition(event) });
-    setDraft({ title: schedule.title, scheduledAt: schedule.scheduledAt, startTime: schedule.startTime ?? '', endTime: schedule.endTime ?? '', memo: schedule.memo ?? '', repeat: schedule.repeat ?? '없음', tag: schedule.tag ?? '' });
+    setPopover({ mode: 'edit', iso: todo.occurrenceAt, todoId: todo.id, ...getPopoverPosition(event) });
+    setDraft({ title: todo.title, startDate: todo.startDate, endDate: todo.endDate ?? '', status: todo.status ?? 'active', tag: todo.tag ?? '' });
   };
   const saveTodoFromCalendar = () => {
     const title = draft.title.trim();
     if (!title) return;
     const tag = draft.tag.trim() || 'TODO';
+    if (draft.endDate && draft.endDate < draft.startDate) {
+      window.alert('종료일은 시작일보다 빠를 수 없습니다.');
+      return;
+    }
     rememberTag(tag);
-    if (popover?.mode === 'edit' && popover.source === 'todo' && popover.todoId) {
-      updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === popover.todoId ? { ...item, title, createdAt: draft.scheduledAt, tag } : item) }));
-    } else if (popover?.mode === 'edit' && popover.source === 'schedule' && popover.scheduleId) {
-      updateData((current) => ({ ...current, schedules: current.schedules.map((item) => item.id === popover.scheduleId ? { ...item, title, scheduledAt: draft.scheduledAt, tag } : item) }));
+    const endDate = draft.endDate || undefined;
+    const done = draft.status === 'ended';
+    const completedAt = done ? (endDate ?? draft.startDate) : undefined;
+    if (popover?.mode === 'edit' && popover.todoId) {
+      updateData((current) => ({ ...current, todos: current.todos.map((item) => item.id === popover.todoId ? { ...item, title, done, startDate: draft.startDate, endDate, status: draft.status, completedAt, tag } : item) }));
     } else {
-      const nextTodo: Todo = { id: Date.now(), title, done: false, createdAt: draft.scheduledAt, tag };
+      const nextTodo: Todo = { id: Date.now(), title, done, startDate: draft.startDate, endDate, status: draft.status, completedAt, tag };
       updateData((current) => ({ ...current, todos: [nextTodo, ...current.todos] }));
     }
     setPopover(null);
   };
   const deleteTodoFromCalendar = () => {
-    if (popover?.source === 'todo' && popover.todoId) {
-      if (!window.confirm('이 TODO를 삭제할까요?')) return;
-      updateData((current) => ({ ...current, todos: current.todos.filter((item) => item.id !== popover.todoId) }));
-      setPopover(null);
-      return;
-    }
-    if (popover?.source === 'schedule' && popover.scheduleId) {
-      if (!window.confirm('이 항목을 삭제할까요?')) return;
-      updateData((current) => ({ ...current, schedules: current.schedules.filter((item) => item.id !== popover.scheduleId) }));
-      setPopover(null);
-    }
+    if (!popover?.todoId) return;
+    if (!window.confirm('이 TODO를 삭제할까요?')) return;
+    updateData((current) => ({ ...current, todos: current.todos.filter((item) => item.id !== popover.todoId) }));
+    setPopover(null);
+  };
+  const updateDraftStatus = (checked: boolean) => {
+    setDraft((current) => ({ ...current, status: checked ? 'ended' : 'active' }));
   };
 
   return (
     <section className="card calendar-wrap">
-      <div className="section-head"><div><div className="caption">{formatMonth(viewMonth)}</div><div className="title">이번 달 일정</div></div><div className="month-nav"><button onClick={() => setViewMonth(addMonths(viewMonth, -1))}>‹</button><button onClick={() => setViewMonth(startOfMonth(today))}>오늘</button><button onClick={() => setViewMonth(addMonths(viewMonth, 1))}>›</button></div></div>
+      <div className="section-head"><div><div className="caption">{formatMonth(viewMonth)}</div><div className="title">이번 달 TODO</div></div><div className="month-nav"><button onClick={() => setViewMonth(addMonths(viewMonth, -1))}>‹</button><button onClick={() => setViewMonth(startOfMonth(today))}>오늘</button><button onClick={() => setViewMonth(addMonths(viewMonth, 1))}>›</button></div></div>
       <div className="calendar-grid">
         {['일', '월', '화', '수', '목', '금', '토'].map((day) => <div className="day-name" key={day}>{day}</div>)}
         {calendarDays.map(({ date, iso, muted }) => {
-          const events = scheduleByDate.get(iso) ?? [];
-          const todos = todoByDate.get(iso) ?? [];
-          return <button className={`date-cell ${muted ? 'muted' : ''} ${iso === todayIso ? 'today' : ''} ${popover?.iso === iso ? 'selected' : ''}`} key={iso} onClick={(event) => openAdd(iso, event)} type="button"><div className="num">{date.getDate()}</div>{todos.map((todo) => <span className={`event-pill todo-pill ${todo.done ? 'done-pill' : ''}`} key={`todo-${todo.id}`} onClick={(event) => openEditTodo(todo, event)}>{todo.title}</span>)}{events.map((event) => <span className="event-pill" key={`${event.id}-${event.occurrenceAt}`} onClick={(clickEvent) => openEditSchedule(event, clickEvent)}>{event.isRepeatInstance ? '↻ ' : ''}{event.title}</span>)}</button>;
+          const todos = [...(todoByDate.get(iso) ?? [])].sort((a, b) => (a.lane ?? 0) - (b.lane ?? 0) || a.title.localeCompare(b.title));
+          return <button className={`date-cell ${muted ? 'muted' : ''} ${iso === todayIso ? 'today' : ''} ${popover?.iso === iso ? 'selected' : ''}`} key={iso} onClick={(event) => openAdd(iso, event)} type="button"><div className="num">{date.getDate()}</div><div className="event-stack">{todos.map((todo) => <span aria-label={todo.title} className={`event-pill todo-range ${todo.rangePosition ?? 'single'} ${todo.status === 'ended' ? 'ended' : ''} ${todo.done ? 'done-pill' : ''} ${shouldShowRangeTitle(todo) ? '' : 'continuing'}`} key={`${todo.id}-${todo.occurrenceAt}`} onClick={(clickEvent) => openEditTodo(todo, clickEvent)} style={{ gridRow: (todo.lane ?? 0) + 1 }}>{shouldShowRangeTitle(todo) ? todo.title : ''}</span>)}</div></button>;
         })}
       </div>
-      {popover && <div className="schedule-popover todo-calendar-popover" style={{ left: popover.x, top: popover.y }}><div className="caption">{draft.scheduledAt}</div><div className="title popover-title">{popover.mode === 'add' ? '새 TODO 추가' : 'TODO 수정'}</div><div className="schedule-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="날짜" type="date" value={draft.scheduledAt} onChange={(scheduledAt) => setDraft((current) => ({ ...current, scheduledAt }))} /><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveTodoFromCalendar} type="button">{popover.mode === 'add' ? 'TODO 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteTodoFromCalendar} type="button">삭제</button>}</div></div></div>}
+      {popover && <div className="todo-popover todo-calendar-popover" style={{ left: popover.x, top: popover.y }}><div className="caption">{draft.endDate ? `${draft.startDate} ~ ${draft.endDate}` : draft.startDate}</div><div className="title popover-title">{popover.mode === 'add' ? '새 TODO 추가' : 'TODO 수정'}</div><div className="todo-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="시작일" type="date" value={draft.startDate} onChange={(startDate) => setDraft((current) => ({ ...current, startDate }))} /><FieldInput label="종료일" type="date" value={draft.endDate} onChange={(endDate) => setDraft((current) => ({ ...current, endDate }))} /><label className="status-check"><input type="checkbox" checked={draft.status === 'ended'} onChange={(event) => updateDraftStatus(event.target.checked)} /><span><b>종료됨</b><small>종료일은 직접 입력한 값을 사용합니다.</small></span></label><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveTodoFromCalendar} type="button">{popover.mode === 'add' ? 'TODO 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteTodoFromCalendar} type="button">삭제</button>}</div></div></div>}
     </section>
   );
 }
@@ -477,13 +571,16 @@ function WorkSummaryCard({ data }: { data: ToodlyData }) {
   const weekEnd = endOfWeek(today);
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
-  const weekDone = data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, weekStart, weekEnd)).length;
-  const monthScheduleCount = expandSchedulesBetween(data.schedules, monthStart, monthEnd).length;
-  const monthDone = data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, monthStart, monthEnd)).length + monthScheduleCount;
-  const pending = data.todos.filter((todo) => !todo.done).length;
-  const carry = data.todos.filter((todo) => !todo.done && todo.createdAt < todayIso).length;
-  const rate = Math.round((data.todos.filter((todo) => todo.done).length / Math.max(data.todos.length, 1)) * 100);
-  return <aside><section className="card"><div className="section-head"><div><div className="caption">로컬 집계</div><div className="title">작업내역</div></div></div><div className="summary-list"><div className="summary-item"><div className="badge blue">W</div><div><strong>이번 주 완료 {weekDone}개</strong><span>이월 {carry}개 · 진행중 {pending}개</span></div><b>{rate}%</b></div><div className="summary-item"><div className="badge green">M</div><div><strong>이번 달 완료 {monthDone}개</strong><span>이월 {carry}개 · 일정 {monthScheduleCount}개</span></div><b>{rate}%</b></div></div></section></aside>;
+  const weekTodos = data.todos.filter((todo) => todoOverlaps(todo, weekStart, weekEnd));
+  const monthTodos = data.todos.filter((todo) => todoOverlaps(todo, monthStart, monthEnd));
+  const weekDone = weekTodos.filter(isTodoDone).length;
+  const monthDone = monthTodos.filter(isTodoDone).length;
+  const weekPending = weekTodos.filter((todo) => !isTodoDone(todo)).length;
+  const monthPending = monthTodos.filter((todo) => !isTodoDone(todo)).length;
+  const weekCarry = weekTodos.filter((todo) => !isTodoDone(todo) && todo.startDate < todayIso).length;
+  const weekRate = Math.round((weekDone / Math.max(weekTodos.length, 1)) * 100);
+  const monthRate = Math.round((monthDone / Math.max(monthTodos.length, 1)) * 100);
+  return <aside><section className="card"><div className="section-head"><div><div className="title">작업내역</div></div></div><div className="summary-list"><div className="summary-item"><div className="badge blue">W</div><div><strong>이번 주 완료 {weekDone}/{weekTodos.length}개</strong><span>이월 {weekCarry}개 · 진행중 {weekPending}개</span></div><b>{weekRate}%</b></div><div className="summary-item"><div className="badge green">M</div><div><strong>이번 달 완료 {monthDone}/{monthTodos.length}개</strong><span>진행중 {monthPending}개 · 전체 TODO {monthTodos.length}개</span></div><b>{monthRate}%</b></div></div></section></aside>;
 }
 
 function TagTaskList({ groups }: { groups: TagGroup[] }) {
@@ -497,7 +594,7 @@ function WeeklyView({ data, updateData }: { data: ToodlyData; updateData: (updat
   const nextWeekStart = new Date(weekStart); nextWeekStart.setDate(nextWeekStart.getDate() + 7);
   const nextWeekEnd = new Date(weekEnd); nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
   const doneGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, weekStart, weekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
-  const nextGroups = groupByTag([...data.todos.filter((todo) => !todo.done).map((todo) => ({ title: todo.title, tag: todo.tag })), ...expandSchedulesBetween(data.schedules, nextWeekStart, nextWeekEnd).map((item) => ({ title: item.isRepeatInstance ? `${item.title} (${item.occurrenceAt})` : item.title, tag: item.tag }))]);
+  const nextGroups = groupByTag(data.todos.filter((todo) => !todo.done && todo.status !== 'ended' && todoOverlaps(todo, nextWeekStart, nextWeekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
   const aiSummary = data.ai?.summaries.week;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -522,8 +619,8 @@ function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (upda
   const monthEnd = endOfMonth(today);
   const nextMonthStart = addMonths(monthStart, 1);
   const nextMonthEnd = endOfMonth(nextMonthStart);
-  const doneItems = [...data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, monthStart, monthEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })), ...expandSchedulesBetween(data.schedules, monthStart, monthEnd).map((schedule) => ({ title: schedule.isRepeatInstance ? `${schedule.title} (${schedule.occurrenceAt})` : schedule.title, tag: schedule.tag }))];
-  const nextItems = [...data.todos.filter((todo) => !todo.done).map((todo) => ({ title: todo.title, tag: todo.tag })), ...expandSchedulesBetween(data.schedules, nextMonthStart, nextMonthEnd).map((schedule) => ({ title: schedule.isRepeatInstance ? `${schedule.title} (${schedule.occurrenceAt})` : schedule.title, tag: schedule.tag }))];
+  const doneItems = data.todos.filter((todo) => (todo.done || todo.status === 'ended') && todoOverlaps(todo, monthStart, monthEnd)).map((todo) => ({ title: todo.title, tag: todo.tag }));
+  const nextItems = data.todos.filter((todo) => !todo.done && todo.status !== 'ended' && todoOverlaps(todo, nextMonthStart, nextMonthEnd)).map((todo) => ({ title: todo.title, tag: todo.tag }));
   const doneGroups = groupByTag(doneItems);
   const nextGroups = groupByTag(nextItems);
   const aiSummary = data.ai?.summaries.month;
@@ -548,7 +645,7 @@ function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (upda
 function MainView({ data, updateData, rememberTag }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void }) {
   const [tab, setTab] = useState<Tab>('calendar');
   const [viewMonth, setViewMonth] = useState(startOfMonth(today));
-  return <main className="stage"><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">일정과 작업내역</div></div><div className="top-actions"><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header>{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
+  return <main className="stage"><section className="panel full"><header className="topbar"><div><div className="caption">전체화면</div><div className="title">TODO와 작업내역</div></div><div className="top-actions"><nav className="tabs"><button className={`tab ${tab === 'calendar' ? 'active' : ''}`} onClick={() => setTab('calendar')}>달력</button><button className={`tab ${tab === 'week' ? 'active' : ''}`} onClick={() => setTab('week')}>주간 정리</button><button className={`tab ${tab === 'month' ? 'active' : ''}`} onClick={() => setTab('month')}>월간 정리</button></nav></div></header>{tab === 'calendar' && <><div className="content-grid"><CalendarView data={data} updateData={updateData} rememberTag={rememberTag} viewMonth={viewMonth} setViewMonth={setViewMonth} /><WorkSummaryCard data={data} /></div><div className="ai-card"><b>데이터 흐름 메모</b><p>TODO는 입력 즉시 오늘 항목으로 저장합니다. 체크되지 않은 항목은 다음날 화면에도 이어서 노출하고, 완료 체크 시 완료일 기준으로 주간/월간 작업내역에 집계합니다.</p></div></>}{tab === 'week' && <div className="screen-stack single"><WeeklyView data={data} updateData={updateData} /></div>}{tab === 'month' && <div className="screen-stack single"><MonthlyView data={data} updateData={updateData} /></div>}</section></main>;
 }
 
 function App() {

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toodly — Todo, doodling, your way</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #3182f6;
+      --blue-deep: #1c64d8;
+      --sky: #eaf3ff;
+      --mint: #5ad7b7;
+      --violet: #8b7cf6;
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e9eef5;
+      --paper: #ffffff;
+      --bg: #f7fbff;
+      --blue-shadow: rgba(49, 130, 246, 0.22);
+      --mint-shadow: rgba(90, 215, 183, 0.22);
+      --violet-shadow: rgba(139, 124, 246, 0.20);
+    }
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(49,130,246,.13), transparent 28%),
+        radial-gradient(circle at 88% 18%, rgba(90,215,183,.15), transparent 26%),
+        linear-gradient(180deg, #ffffff 0%, var(--bg) 60%, #ffffff 100%);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .page { overflow: hidden; }
+    .nav {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.03em; }
+    .logo {
+      width: 34px; height: 34px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--blue), #6cb8ff);
+      color: white; display: grid; place-items: center;
+      box-shadow: 0 14px 34px var(--blue-shadow);
+    }
+    .nav-links { display: flex; gap: 26px; color: var(--muted); font-size: 14px; }
+    .download-small {
+      padding: 11px 16px; border-radius: 999px; background: #111827; color: #fff;
+      font-size: 14px; font-weight: 700;
+      box-shadow: 0 12px 30px rgba(49,130,246,.16);
+    }
+    .hero {
+      width: min(1120px, calc(100% - 40px));
+      margin: 58px auto 0;
+      display: grid;
+      grid-template-columns: 0.94fr 1.06fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 999px;
+      background: rgba(49,130,246,.09); color: var(--blue-deep);
+      font-size: 13px; font-weight: 800;
+      box-shadow: 0 12px 28px rgba(49,130,246,.10);
+    }
+    h1 {
+      margin-top: 22px;
+      font-size: clamp(48px, 7vw, 84px);
+      line-height: .94;
+      letter-spacing: -0.075em;
+    }
+    .gradient-text {
+      background: linear-gradient(100deg, var(--blue-deep), #54b6ff 45%, var(--mint));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .subtitle {
+      margin-top: 24px;
+      color: #4b5563;
+      font-size: 19px;
+      line-height: 1.72;
+      letter-spacing: -0.02em;
+      max-width: 560px;
+    }
+    .trust-note {
+      margin-top: 14px;
+      color: var(--blue-deep);
+      font-size: 15px;
+      line-height: 1.6;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .cta-row { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+    .primary {
+      border: 0; border-radius: 18px; padding: 16px 22px;
+      background: linear-gradient(135deg, var(--blue), #65adff);
+      color: white; font-size: 16px; font-weight: 800;
+      box-shadow: 0 24px 56px var(--blue-shadow);
+      cursor: pointer;
+    }
+    .secondary {
+      border: 1px solid var(--line); border-radius: 18px; padding: 16px 22px;
+      background: rgba(255,255,255,.75); color: #374151; font-size: 16px; font-weight: 800;
+      box-shadow: 0 20px 48px rgba(49,130,246,.10);
+      cursor: pointer;
+    }
+    .name-card {
+      margin-top: 36px; padding: 18px 20px; border: 1px solid rgba(49,130,246,.13);
+      background: rgba(255,255,255,.72); backdrop-filter: blur(18px);
+      border-radius: 24px; max-width: 540px;
+      box-shadow: 0 22px 58px rgba(49,130,246,.12);
+    }
+    .name-formula { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-weight: 850; letter-spacing: -0.03em; }
+    .pill { padding: 7px 10px; border-radius: 999px; background: var(--sky); color: var(--blue-deep); font-size: 13px; }
+    .plus { color: #9ca3af; font-weight: 900; }
+    .name-card p { margin-top: 10px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .mock-stage { position: relative; min-height: 580px; }
+    .calendar-window {
+      position: absolute; right: 0; top: 28px; width: min(680px, 100%);
+      border-radius: 34px; padding: 24px;
+      background: rgba(255,255,255,.86); backdrop-filter: blur(20px);
+      border: 1px solid rgba(49,130,246,.12);
+      box-shadow: 0 34px 90px var(--blue-shadow), 0 16px 42px var(--mint-shadow);
+    }
+    .window-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .dots { display: flex; gap: 7px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #ff8c8c; }
+    .dot:nth-child(2) { background: #ffd36a; } .dot:nth-child(3) { background: #6ee7b7; }
+    .month { font-weight: 850; letter-spacing: -0.04em; font-size: 22px; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px; }
+    .day-name { font-size: 12px; color: #9aa5b1; text-align: center; font-weight: 800; padding: 8px 0; }
+    .cell {
+      min-height: 72px; border: 1px solid #eef3f9; border-radius: 17px; padding: 9px;
+      background: #fbfdff; color: #94a3b8; font-size: 13px;
+    }
+    .cell.active { background: white; color: #334155; box-shadow: 0 10px 26px rgba(49,130,246,.08); }
+    .cell.today { border-color: rgba(49,130,246,.45); box-shadow: 0 16px 34px var(--blue-shadow); }
+    .event { display: block; margin-top: 8px; padding: 5px 7px; border-radius: 999px; background: #eaf3ff; color: var(--blue-deep); font-size: 11px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .event.mint { background: #e9fbf6; color: #0f9f7a; }
+    .pin-window {
+      position: absolute; left: 10px; bottom: 18px; width: 292px;
+      border-radius: 30px; background: rgba(255,255,255,.94);
+      border: 1px solid rgba(90,215,183,.22); padding: 22px;
+      box-shadow: 0 32px 76px var(--mint-shadow), 0 10px 36px rgba(49,130,246,.12);
+    }
+    .pin-caption { color: #8fa0b3; font-size: 12px; font-weight: 700; }
+    .pin-title { margin-top: 2px; font-size: 24px; font-weight: 900; letter-spacing: -0.05em; }
+    .input { margin: 18px 0; display: flex; gap: 8px; }
+    .input span { flex: 1; padding: 12px; border-radius: 14px; background: #f3f7fb; color: #94a3b8; font-size: 13px; }
+    .input b { padding: 12px 13px; border-radius: 14px; background: var(--blue); color: white; font-size: 13px; }
+    .todo { display: flex; gap: 10px; padding: 12px 0; border-top: 1px solid #eef3f8; align-items: flex-start; }
+    .check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--blue); margin-top: 2px; }
+    .todo strong { display: block; font-size: 14px; letter-spacing: -0.02em; }
+    .todo small { color: #94a3b8; font-size: 12px; }
+    .doodle-line {
+      position: absolute; right: 34px; bottom: 28px; width: 180px; height: 52px;
+      border-bottom: 5px solid rgba(139,124,246,.35);
+      border-radius: 50%; transform: rotate(-6deg);
+      filter: drop-shadow(0 12px 18px var(--violet-shadow));
+    }
+    .sections {
+      width: min(1120px, calc(100% - 40px)); margin: 96px auto 40px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    }
+    .feature {
+      border-radius: 28px; background: rgba(255,255,255,.78); border: 1px solid var(--line);
+      padding: 26px; min-height: 210px;
+      box-shadow: 0 24px 60px rgba(49,130,246,.10);
+    }
+    .feature:nth-child(2) { box-shadow: 0 24px 60px var(--mint-shadow); }
+    .feature:nth-child(3) { box-shadow: 0 24px 60px var(--violet-shadow); }
+    .icon { width: 42px; height: 42px; border-radius: 16px; display: grid; place-items: center; background: var(--sky); margin-bottom: 18px; }
+    .feature h3 { font-size: 21px; letter-spacing: -0.04em; margin-bottom: 10px; }
+    .feature p { color: var(--muted); line-height: 1.68; font-size: 15px; }
+    .download-section {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto 80px;
+      border-radius: 34px;
+      padding: 34px;
+      background: linear-gradient(135deg, rgba(49,130,246,.10), rgba(90,215,183,.12));
+      border: 1px solid rgba(49,130,246,.14);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      box-shadow: 0 24px 70px rgba(49,130,246,.12);
+    }
+    .download-section h2 { font-size: 30px; letter-spacing: -0.05em; margin-bottom: 10px; }
+    .download-section p { color: var(--muted); line-height: 1.7; font-size: 15px; }
+    .download-actions { display: flex; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+    .download-note { margin-top: 10px; color: var(--blue-deep); font-weight: 800; font-size: 14px; }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; margin-top: 34px; }
+      .mock-stage { min-height: 620px; }
+      .calendar-window { position: relative; top: 0; }
+      .pin-window { left: 18px; bottom: -16px; }
+      .sections { grid-template-columns: 1fr; margin-top: 70px; }
+      .download-section { flex-direction: column; align-items: flex-start; padding: 28px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="nav">
+      <a class="brand" href="#"><span class="logo">T</span><span>Toodly</span></a>
+      <div class="nav-links"><a href="#features">기능</a><a href="#name">이름 이야기</a><a href="#download">다운로드</a></div>
+      <a class="download-small" href="#download">Mac용 다운로드</a>
+    </nav>
+
+    <main class="hero">
+      <section>
+        <span class="eyebrow">오늘의 할 일, 더 Toodly하게</span>
+        <h1>작게 적고,<br><span class="gradient-text">크게 정리하세요.</span></h1>
+        <p class="subtitle">핀 창에서는 Todo처럼 빠르게 입력하고, 전체 달력에서는 Doodling처럼 가볍게 흐름을 정리합니다. 오늘의 작은 일들이 자연스럽게 한 주의 기록이 됩니다.</p>
+        <p class="trust-note">로그인 없이 바로 쓰고, 메모는 내 컴퓨터에만 안전하게 저장돼요.</p>
+        <div class="cta-row">
+          <a class="primary" href="#download">Toodly 시작하기</a>
+          <a class="secondary" href="#features">화면 둘러보기</a>
+        </div>
+        <div class="name-card" id="name">
+          <div class="name-formula"><span class="pill">Todo</span><span class="plus">+</span><span class="pill">Doodling</span><span class="plus">+</span><span class="pill">-y</span></div>
+          <p>딱딱한 목록보다 조금 더 나답게, 해야 할 일과 떠오른 생각을 부담 없이 다루는 느낌을 담았습니다.</p>
+        </div>
+      </section>
+
+      <section class="mock-stage" aria-label="Toodly app preview">
+        <div class="calendar-window">
+          <div class="window-top"><div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><div class="month">2026년 5월</div></div>
+          <div class="calendar-grid">
+            <div class="day-name">일</div><div class="day-name">월</div><div class="day-name">화</div><div class="day-name">수</div><div class="day-name">목</div><div class="day-name">금</div><div class="day-name">토</div>
+            <div class="cell">26</div><div class="cell">27</div><div class="cell">28</div><div class="cell">29</div><div class="cell">30</div><div class="cell active">1</div><div class="cell active">2</div>
+            <div class="cell active">3</div><div class="cell active">4</div><div class="cell active">5<span class="event mint">휴일</span></div><div class="cell active">6</div><div class="cell active">7</div><div class="cell active">8</div><div class="cell active">9</div>
+            <div class="cell active">10</div><div class="cell active">11</div><div class="cell active">12</div><div class="cell active">13</div><div class="cell active">14<span class="event">회의</span></div><div class="cell active">15</div><div class="cell active">16</div>
+            <div class="cell active today">17<span class="event">기획 정리</span></div><div class="cell active">18<span class="event">화면 구조</span><span class="event mint">설계</span></div><div class="cell active">19</div><div class="cell active">20</div><div class="cell active">21</div><div class="cell active">22<span class="event">리뷰</span></div><div class="cell active">23</div>
+          </div>
+        </div>
+        <div class="pin-window">
+          <div class="pin-caption">2026-05-20 (수)</div>
+          <div class="pin-title">Toodly</div>
+          <div class="input"><span>할 일을 바로 입력</span><b>추가</b></div>
+          <div class="todo"><span class="check"></span><div><strong>랜딩 페이지 컨셉 잡기</strong><small>#기획</small></div></div>
+          <div class="todo"><span class="check"></span><div><strong>이번 주 작업 정리</strong><small>#회고</small></div></div>
+        </div>
+        <div class="doodle-line"></div>
+      </section>
+    </main>
+
+    <section class="sections" id="features">
+      <article class="feature"><div class="icon">📌</div><h3>작은 핀 창</h3><p>생각난 할 일을 바로 적고, 체크하고, 필요한 만큼만 수정합니다.</p></article>
+      <article class="feature"><div class="icon">🗓️</div><h3>큰 달력 화면</h3><p>TODO와 일정을 한 달 흐름 안에서 보고, 날짜별 작업을 자연스럽게 연결합니다.</p></article>
+      <article class="feature"><div class="icon">📝</div><h3>주간·월간 정리</h3><p>완료한 일과 다음 작업을 보고용 문장으로 옮기기 쉽게 모아둡니다.</p></article>
+    </section>
+
+    <section class="download-section" id="download">
+      <div>
+        <h2>Toodly 다운로드</h2>
+        <p>가볍게 설치하고 바로 시작하세요. 로그인 없이 사용할 수 있고, 메모는 내 컴퓨터에만 저장됩니다.</p>
+        <p class="download-note">현재 Mac용 데스크톱 앱을 준비 중입니다.</p>
+      </div>
+      <div class="download-actions">
+        <a class="primary" href="#">Mac용 다운로드</a>
+        <a class="secondary" href="#features">기능 다시 보기</a>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
