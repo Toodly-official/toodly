@@ -194,6 +194,21 @@
     .download-section p { color: var(--muted); line-height: 1.7; font-size: 15px; }
     .download-actions { display: flex; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
     .download-note { margin-top: 10px; color: var(--blue-deep); font-weight: 800; font-size: 14px; }
+    .faq-section {
+      width: min(1120px, calc(100% - 40px));
+      margin: -40px auto 80px;
+    }
+    .faq-section h2 { font-size: 30px; letter-spacing: -0.05em; margin-bottom: 18px; }
+    .faq-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .faq-item {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      background: rgba(255,255,255,.78);
+      box-shadow: 0 18px 44px rgba(49,130,246,.08);
+    }
+    .faq-item h3 { font-size: 17px; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .faq-item p { color: var(--muted); line-height: 1.65; font-size: 14px; }
     @media (max-width: 900px) {
       .hero { grid-template-columns: 1fr; margin-top: 34px; }
       .mock-stage { min-height: 620px; }
@@ -201,6 +216,8 @@
       .pin-window { left: 18px; bottom: -16px; }
       .sections { grid-template-columns: 1fr; margin-top: 70px; }
       .download-section { flex-direction: column; align-items: flex-start; padding: 28px; }
+      .faq-section { margin-top: -40px; }
+      .faq-list { grid-template-columns: 1fr; }
       .nav-links { display: none; }
     }
   </style>
@@ -209,7 +226,7 @@
   <div class="page">
     <nav class="nav">
       <a class="brand" href="#"><span class="logo">T</span><span>Toodly</span></a>
-      <div class="nav-links"><a href="#features">기능</a><a href="#name">이름 이야기</a><a href="#download">다운로드</a></div>
+      <div class="nav-links"><a href="#features">기능</a><a href="#name">이름 이야기</a><a href="#download">다운로드</a><a href="#faq">FAQ</a></div>
       <a class="download-small" href="#download">Mac용 다운로드</a>
     </nav>
 
@@ -266,6 +283,18 @@
       <div class="download-actions">
         <a class="primary" href="#">Mac용 다운로드</a>
         <a class="secondary" href="#features">기능 다시 보기</a>
+      </div>
+    </section>
+
+    <section class="faq-section" id="faq">
+      <h2>자주 묻는 질문</h2>
+      <div class="faq-list">
+        <article class="faq-item"><h3>현재 정식 버전인가요?</h3><p>아직 베타 버전입니다. 사용 중 일부 기능이나 화면이 바뀔 수 있습니다.</p></article>
+        <article class="faq-item"><h3>어떤 컴퓨터에서 사용할 수 있나요?</h3><p>현재 베타 버전은 Apple Silicon ARM Mac에서 사용할 수 있습니다.</p></article>
+        <article class="faq-item"><h3>Intel Mac이나 Windows도 사용할 수 있나요?</h3><p>아직은 지원하지 않으며, 추후 추가 예정입니다.</p></article>
+        <article class="faq-item"><h3>로그인이 필요한가요?</h3><p>아니요. 로그인 없이 바로 사용할 수 있습니다.</p></article>
+        <article class="faq-item"><h3>데이터는 어디에 저장되나요?</h3><p>메모와 TODO는 내 컴퓨터에 로컬로 저장됩니다.</p></article>
+        <article class="faq-item"><h3>여러 기기에서 동기화되나요?</h3><p>현재 베타 버전은 로컬 저장 중심이며, 기기 간 동기화 기능은 추후 추가 예정입니다.</p></article>
       </div>
     </section>
   </div>
