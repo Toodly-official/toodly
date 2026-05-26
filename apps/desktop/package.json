@@ -34,12 +34,14 @@
   "build": {
     "appId": "com.toodly.app",
     "productName": "Toodly",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "protocols": [
@@ -51,11 +53,16 @@
       }
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": "dmg",
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis"
+    },
+    "linux": {
+      "icon": "build/icon.png"
     },
     "publish": [
       {

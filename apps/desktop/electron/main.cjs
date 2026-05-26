@@ -553,6 +553,11 @@ function loadWindow(window, view) {
   });
 }
 
+function getAppIconPath() {
+  const iconPath = path.join(__dirname, '../build/icon.png');
+  return fs.existsSync(iconPath) ? iconPath : undefined;
+}
+
 function createPinWindow() {
   const bounds = loadWindowState('pin', { width: 380, height: 780 });
   pinWindow = new BrowserWindow({
@@ -565,6 +570,7 @@ function createPinWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: '#f5f7fb',
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -597,6 +603,7 @@ function createMainWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 22, y: 20 },
     backgroundColor: '#f5f7fb',
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -628,6 +635,9 @@ app.on('open-url', (event, url) => {
 });
 
 app.whenReady().then(() => {
+  const iconPath = getAppIconPath();
+  if (isDev && process.platform === 'darwin' && iconPath) app.dock.setIcon(iconPath);
+
   app.setAsDefaultProtocolClient(PROTOCOL);
   setupStore();
   setupAutoUpdater();
