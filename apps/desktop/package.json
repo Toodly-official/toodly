@@ -1,6 +1,6 @@
 {
   "name": "@toodly/desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Toodly desktop memo and schedule app",
   "author": "Ji-Hoon24 <oh.ji.hoon24@gmail.com>",
   "private": true,
