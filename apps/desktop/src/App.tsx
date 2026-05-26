@@ -39,16 +39,7 @@ const today = new Date();
 const todayIso = toIsoDate(today);
 const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 const initialData: ToodlyData = {
-  todos: [
-    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, startDate: '2026-05-17', status: 'active', tag: '기획' },
-    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, startDate: '2026-05-18', status: 'active', tag: '기획' },
-    { id: 3, title: '앱 이름 확정', done: true, startDate: '2026-05-18', status: 'ended', completedAt: '2026-05-18', tag: '기록' },
-    { id: 101, title: '어린이날', done: true, startDate: '2026-05-05', endDate: '2026-05-05', status: 'ended', completedAt: '2026-05-05', tag: '휴일' },
-    { id: 102, title: '회의', done: true, startDate: '2026-05-14', endDate: '2026-05-14', status: 'ended', completedAt: '2026-05-14', tag: '회의' },
-    { id: 103, title: 'Toodly 설계', done: false, startDate: '2026-05-18', endDate: '2026-05-20', status: 'ended', tag: '기획', memo: '전체화면/고정핀 구조 정리' },
-    { id: 105, title: '2주 테스트 일정', done: false, startDate: '2026-05-11', endDate: '2026-05-24', status: 'ended', tag: '기획', memo: '주간이 넘어가는 기간 TODO 테스트' },
-    { id: 104, title: '리뷰', done: false, startDate: '2026-05-22', endDate: '2026-05-22', status: 'active', tag: '회고' },
-  ],
+  todos: [],
   tags: ['기획', '기술검토', '기록', '회의', '회사', '회고', '휴일', 'TODO'],
   ai: { auth: { connected: false }, summaries: {} },
 };
@@ -75,7 +66,7 @@ function addMonths(date: Date, offset: number) {
 
 function startOfWeek(date: Date) {
   const result = new Date(date);
-  const diff = (result.getDay() + 6) % 7;
+  const diff = result.getDay();
   result.setDate(result.getDate() - diff);
   return result;
 }
@@ -591,8 +582,11 @@ function TagTaskList({ groups }: { groups: TagGroup[] }) {
 function WeeklyView({ data, updateData }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void }) {
   const weekStart = startOfWeek(today);
   const weekEnd = endOfWeek(today);
+  const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(weekEnd); lastWeekEnd.setDate(lastWeekEnd.getDate() - 7);
   const nextWeekStart = new Date(weekStart); nextWeekStart.setDate(nextWeekStart.getDate() + 7);
   const nextWeekEnd = new Date(weekEnd); nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
+  const lastGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, lastWeekStart, lastWeekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
   const doneGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, weekStart, weekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
   const nextGroups = groupByTag(data.todos.filter((todo) => !todo.done && todo.status !== 'ended' && todoOverlaps(todo, nextWeekStart, nextWeekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
   const aiSummary = data.ai?.summaries.week;
@@ -611,7 +605,7 @@ function WeeklyView({ data, updateData }: { data: ToodlyData; updateData: (updat
       setLoading(false);
     }
   };
-  return <section className="card"><div className="screen-label">탭 화면 · 주간 정리</div><div className="section-head spaced"><div><div className="caption">{toIsoDate(weekStart)} ~ {toIsoDate(weekEnd)}</div><div className="title">주간 정리</div></div><div className="badge blue">W</div></div><div className="report-block"><div className="report-section"><h3>이번 주 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 주 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
+  return <section className="card"><div className="section-head spaced"><div><div className="caption">{toIsoDate(weekStart)} ~ {toIsoDate(weekEnd)}</div><div className="title">주간 정리</div></div><div className="badge blue">W</div></div><div className="report-block"><div className="report-section"><h3>지난주 완료한 작업</h3><TagTaskList groups={lastGroups} /></div><div className="report-section"><h3>이번 주 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 주 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
 }
 
 function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void }) {
@@ -639,7 +633,7 @@ function MonthlyView({ data, updateData }: { data: ToodlyData; updateData: (upda
       setLoading(false);
     }
   };
-  return <section className="card"><div className="screen-label">탭 화면 · 월간 정리</div><div className="section-head spaced"><div><div className="caption">{formatMonth(today)}</div><div className="title">월간 정리</div></div><div className="badge green">M</div></div><div className="report-block"><div className="report-section"><h3>이번 달 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 달 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
+  return <section className="card"><div className="section-head spaced"><div><div className="caption">{formatMonth(today)}</div><div className="title">월간 정리</div></div><div className="badge green">M</div></div><div className="report-block"><div className="report-section"><h3>이번 달 완료한 작업</h3><TagTaskList groups={doneGroups} /></div><div className="report-section"><h3>다음 달 작업 예정</h3><TagTaskList groups={nextGroups} /></div></div></section>;
 }
 
 function MainView({ data, updateData, rememberTag }: { data: ToodlyData; updateData: (updater: (current: ToodlyData) => ToodlyData) => void; rememberTag: (tag?: string) => void }) {

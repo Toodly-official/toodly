@@ -25,15 +25,7 @@ const AI_ACCOUNT = 'oauth-token';
 const PROTOCOL = 'toodly';
 
 const initialData = {
-  todos: [
-    { id: 1, title: '어제 못 끝낸 기획 정리', done: false, startDate: '2026-05-17', status: 'active', tag: '기획' },
-    { id: 2, title: 'Toodly 화면 구조 잡기', done: false, startDate: '2026-05-18', status: 'active', tag: '기획' },
-    { id: 3, title: '앱 이름 확정', done: true, startDate: '2026-05-18', status: 'ended', completedAt: '2026-05-18', tag: '기록' },
-    { id: 101, title: '어린이날', done: true, startDate: '2026-05-05', endDate: '2026-05-05', status: 'ended', completedAt: '2026-05-05', tag: '휴일' },
-    { id: 102, title: '회의', done: true, startDate: '2026-05-14', endDate: '2026-05-14', status: 'ended', completedAt: '2026-05-14', tag: '회의' },
-    { id: 103, title: 'Toodly 설계', done: false, startDate: '2026-05-18', endDate: '2026-05-20', status: 'ended', tag: '기획', memo: '전체화면/고정핀 구조 정리' },
-    { id: 104, title: '리뷰', done: false, startDate: '2026-05-22', endDate: '2026-05-22', status: 'active', tag: '회고' },
-  ],
+  todos: [],
   tags: ['기획', '기술검토', '기록', '회의', '회사', '회고', '휴일', 'TODO'],
   ai: { auth: { connected: false }, summaries: {} },
 };
