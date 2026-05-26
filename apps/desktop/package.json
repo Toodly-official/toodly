@@ -68,7 +68,8 @@
       {
         "provider": "github",
         "owner": "Toodly-official",
-        "repo": "toodly"
+        "repo": "toodly",
+        "releaseType": "draft"
       }
     ]
   }
