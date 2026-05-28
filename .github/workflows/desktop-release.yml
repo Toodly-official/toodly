@@ -67,7 +67,14 @@ jobs:
       - name: Build renderer
         run: pnpm --filter @toodly/desktop build
 
-      - name: Build package and publish draft release
-        run: pnpm --filter @toodly/desktop exec electron-builder ${{ matrix.target }} --publish always
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Build package
+        run: pnpm --filter @toodly/desktop exec electron-builder ${{ matrix.target }} --publish never
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/*.yml
