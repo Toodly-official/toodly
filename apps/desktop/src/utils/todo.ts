@@ -125,5 +125,7 @@ export function buildCalendarDays(viewMonth: Date) {
 }
 
 export function formatTodoPeriod(todo: Todo) {
-  return `(${formatShortDate(todo.startDate)}~${formatShortDate(getTodoEndIso(todo))})`;
+  const endDate = getTodoEndIso(todo);
+  if (todo.startDate === endDate) return `(${formatShortDate(todo.startDate)})`;
+  return `(${formatShortDate(todo.startDate)}~${formatShortDate(endDate)})`;
 }
