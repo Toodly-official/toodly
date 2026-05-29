@@ -222,10 +222,36 @@ function buildCalendarDays(viewMonth: Date) {
   });
 }
 
-function getSuggestions(value: string, tags: string[]) {
+function getRecentTagCounts(todos: Todo[]) {
+  const recentStart = new Date(today);
+  recentStart.setMonth(recentStart.getMonth() - 1);
+  const counts = new Map<string, number>();
+  todos.forEach((todo) => {
+    const tag = todo.tag?.trim();
+    if (!tag || !todoOverlaps(todo, recentStart, today)) return;
+    counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  });
+  return counts;
+}
+
+function getSuggestions(value: string, tags: string[], todos: Todo[]) {
   const keyword = value.trim().toLowerCase();
-  if (!keyword) return tags.slice(0, 3);
-  return tags.filter((tag) => tag.toLowerCase().includes(keyword) || keyword.includes(tag[0]?.toLowerCase() ?? '')).slice(0, 3);
+  const recentCounts = getRecentTagCounts(todos);
+  return tags
+    .map((tag, index) => ({ tag, index, count: recentCounts.get(tag) ?? 0 }))
+    .filter(({ tag }) => !keyword || tag.toLowerCase().includes(keyword) || keyword.includes(tag[0]?.toLowerCase() ?? ''))
+    .sort((a, b) => b.count - a.count || a.index - b.index)
+    .slice(0, 3)
+    .map(({ tag }) => tag);
+}
+
+function formatShortDate(iso: string) {
+  const [, month, day] = iso.split('-');
+  return `${month}/${day}`;
+}
+
+function formatTodoPeriod(todo: Todo) {
+  return `(${formatShortDate(todo.startDate)}~${formatShortDate(getTodoEndIso(todo))})`;
 }
 
 function groupByTag(items: Array<{ tag?: string; title: string }>): TagGroup[] {
@@ -325,12 +351,12 @@ function useUpdateStatus() {
   return { status, check, install };
 }
 
-function TagSuggest({ value, tags, onPick }: { value: string; tags: string[]; onPick: (tag: string) => void }) {
+function TagSuggest({ value, tags, todos, onPick }: { value: string; tags: string[]; todos: Todo[]; onPick: (tag: string) => void }) {
   return (
     <div className="tag-suggest">
       <div className="tag-suggest-label">태그 추천</div>
       <div className="tag-chips">
-        {getSuggestions(value, tags).map((tag) => <button className="tag-chip" key={tag} onClick={() => onPick(tag)} type="button">{tag}</button>)}
+        {getSuggestions(value, tags, todos).map((tag) => <button className="tag-chip" key={tag} onClick={() => onPick(tag)} type="button">{tag}</button>)}
       </div>
       <div className="tag-help">선택 없이 저장하면 입력한 값이 새 태그로 저장됩니다.</div>
     </div>
@@ -359,6 +385,7 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const currentIso = toIsoDate(currentDate);
   const visibleTodos = data.todos.filter((todo) => !todo.done || todo.completedAt === currentIso);
+  const canAddQuickTodo = quickTitle.trim().length > 0;
 
   useEffect(() => {
     setEditTitle(selected?.title ?? '');
@@ -414,10 +441,10 @@ function PinView({ embedded = false, data, updateData, rememberTag }: { embedded
   return (
     <aside className={`panel pin ${embedded ? '' : 'pin-standalone'}`}>
       <div className="pin-header"><div><div className="caption">{formatHeaderDate(currentDate)}</div><div className="title">Toodly</div></div><div className="pin-actions"><button className={`icon-btn pin-toggle ${pinAlwaysOnTop ? '' : 'off'}`} aria-label={pinAlwaysOnTop ? '고정핀 해제' : '고정핀 고정'} onClick={togglePinAlwaysOnTop} type="button">📌</button><button className="icon-btn" aria-label="전체화면 열기" onClick={() => void window.toodly?.openMainWindow()} type="button">↗</button></div></div>
-      <form className="quick-input" onSubmit={(event) => { event.preventDefault(); addTodo(); }}><input placeholder="할 일을 바로 입력" value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} /><button>추가</button></form>
+      <form className="quick-input" onSubmit={(event) => { event.preventDefault(); addTodo(); }}><input placeholder="할 일을 바로 입력" value={quickTitle} onChange={(event) => setQuickTitle(event.target.value)} /><button disabled={!canAddQuickTodo} type="submit">추가</button></form>
       <section className="todo-list">
         {!visibleTodos.length && <div className="empty-card">아직 TODO가 없습니다.</div>}
-        {visibleTodos.map((todo) => <div className="todo-block" key={todo.id}><div className={`todo ${!todo.done && todo.startDate < currentIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`}><input aria-label={`${todo.title} 완료`} type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} /><button className={`todo-text ${todo.done ? 'done' : ''}`} onClick={() => setSelectedId(selected?.id === todo.id ? 0 : todo.id)} type="button"><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : `#${todo.tag ?? 'TODO'}`}</span></button></div>{selected?.id === todo.id && <div className="todo-edit-popover"><div className="caption">TODO 텍스트 클릭</div><div className="title small-title">TODO 수정</div><div className="todo-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">시작일: {selected.startDate}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}</div>)}
+        {visibleTodos.map((todo) => <div className="todo-block" key={todo.id}><div className={`todo ${!todo.done && todo.startDate < currentIso ? 'carry' : ''} ${selected?.id === todo.id ? 'selected' : ''}`}><input aria-label={`${todo.title} 완료`} type="checkbox" checked={todo.done} onChange={() => toggleDone(todo.id)} /><button className={`todo-text ${todo.done ? 'done' : ''}`} onClick={() => setSelectedId(selected?.id === todo.id ? 0 : todo.id)} type="button"><strong>{todo.title}</strong><span>{todo.done ? '완료됨' : `#${todo.tag ?? 'TODO'}`}</span></button></div>{selected?.id === todo.id && <div className="todo-edit-popover"><div className="caption">TODO 텍스트 클릭</div><div className="title small-title">TODO 수정</div><div className="todo-form"><FieldInput label="내용" value={editTitle} onChange={setEditTitle} /><div className="field">시작일: {selected.startDate}</div><FieldInput label="태그" value={editTag} onChange={setEditTag} placeholder="태그 입력" /><TagSuggest value={editTag} tags={data.tags} todos={data.todos} onPick={setEditTag} /><div className="todo-edit-actions"><button className="secondary-btn" onClick={saveTodo} type="button">저장</button><button className="danger-btn" onClick={deleteTodo} type="button">삭제</button></div></div></div>}</div>)}
       </section>
       <div className="pin-footer"><div className="mini-stat"><b>{data.todos.filter((todo) => !todo.done).length}</b><span>오늘 할 일</span></div><div className="mini-stat"><b>{carryCount}</b><span>이월된 일</span></div></div>
     </aside>
@@ -509,7 +536,7 @@ function CalendarView({ data, updateData, rememberTag, viewMonth, setViewMonth }
           return <button className={`date-cell ${muted ? 'muted' : ''} ${iso === todayIso ? 'today' : ''} ${popover?.iso === iso ? 'selected' : ''}`} key={iso} onClick={(event) => openAdd(iso, event)} type="button"><div className="num">{date.getDate()}</div><div className="event-stack">{todos.map((todo) => <span aria-label={todo.title} className={`event-pill todo-range ${todo.rangePosition ?? 'single'} ${todo.status === 'ended' ? 'ended' : ''} ${todo.done ? 'done-pill' : ''} ${shouldShowRangeTitle(todo) ? '' : 'continuing'}`} key={`${todo.id}-${todo.occurrenceAt}`} onClick={(clickEvent) => openEditTodo(todo, clickEvent)} style={{ gridRow: (todo.lane ?? 0) + 1 }}>{shouldShowRangeTitle(todo) ? todo.title : ''}</span>)}</div></button>;
         })}
       </div>
-      {popover && <div className="todo-popover todo-calendar-popover" style={{ left: popover.x, top: popover.y }}><div className="caption">{draft.endDate ? `${draft.startDate} ~ ${draft.endDate}` : draft.startDate}</div><div className="title popover-title">{popover.mode === 'add' ? '새 TODO 추가' : 'TODO 수정'}</div><div className="todo-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="시작일" type="date" value={draft.startDate} onChange={(startDate) => setDraft((current) => ({ ...current, startDate }))} /><FieldInput label="종료일" type="date" value={draft.endDate} onChange={(endDate) => setDraft((current) => ({ ...current, endDate }))} /><label className="status-check"><input type="checkbox" checked={draft.status === 'ended'} onChange={(event) => updateDraftStatus(event.target.checked)} /><span><b>종료됨</b><small>종료일은 직접 입력한 값을 사용합니다.</small></span></label><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveTodoFromCalendar} type="button">{popover.mode === 'add' ? 'TODO 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteTodoFromCalendar} type="button">삭제</button>}</div></div></div>}
+      {popover && <div className="todo-popover todo-calendar-popover" style={{ left: popover.x, top: popover.y }}><div className="caption">{draft.endDate ? `${draft.startDate} ~ ${draft.endDate}` : draft.startDate}</div><div className="title popover-title">{popover.mode === 'add' ? '새 TODO 추가' : 'TODO 수정'}</div><div className="todo-form"><FieldInput label="제목" value={draft.title} onChange={(title) => setDraft((current) => ({ ...current, title }))} placeholder="예) 미팅" /><FieldInput label="시작일" type="date" value={draft.startDate} onChange={(startDate) => setDraft((current) => ({ ...current, startDate }))} /><FieldInput label="종료일" type="date" value={draft.endDate} onChange={(endDate) => setDraft((current) => ({ ...current, endDate }))} /><label className="status-check"><input type="checkbox" checked={draft.status === 'ended'} onChange={(event) => updateDraftStatus(event.target.checked)} /><span><b>종료됨</b><small>종료일은 직접 입력한 값을 사용합니다.</small></span></label><FieldInput label="태그" value={draft.tag} onChange={(tag) => setDraft((current) => ({ ...current, tag }))} placeholder="태그 입력" /><TagSuggest value={draft.tag} tags={data.tags} todos={data.todos} onPick={(tag) => setDraft((current) => ({ ...current, tag }))} /><div className={popover.mode === 'add' ? '' : 'popover-actions'}><button className={popover.mode === 'add' ? 'primary-btn full-width' : 'secondary-btn'} onClick={saveTodoFromCalendar} type="button">{popover.mode === 'add' ? 'TODO 추가' : '저장'}</button>{popover.mode === 'edit' && <button className="danger-btn" onClick={deleteTodoFromCalendar} type="button">삭제</button>}</div></div></div>}
     </section>
   );
 }
@@ -586,9 +613,9 @@ function WeeklyView({ data, updateData }: { data: ToodlyData; updateData: (updat
   const lastWeekEnd = new Date(weekEnd); lastWeekEnd.setDate(lastWeekEnd.getDate() - 7);
   const nextWeekStart = new Date(weekStart); nextWeekStart.setDate(nextWeekStart.getDate() + 7);
   const nextWeekEnd = new Date(weekEnd); nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
-  const lastGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, lastWeekStart, lastWeekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
-  const doneGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, weekStart, weekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
-  const nextGroups = groupByTag(data.todos.filter((todo) => !todo.done && todo.status !== 'ended' && todoOverlaps(todo, nextWeekStart, nextWeekEnd)).map((todo) => ({ title: todo.title, tag: todo.tag })));
+  const lastGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, lastWeekStart, lastWeekEnd)).map((todo) => ({ title: `${todo.title} ${formatTodoPeriod(todo)}`, tag: todo.tag })));
+  const doneGroups = groupByTag(data.todos.filter((todo) => todo.done && isBetweenIso(todo.completedAt, weekStart, weekEnd)).map((todo) => ({ title: `${todo.title} ${formatTodoPeriod(todo)}`, tag: todo.tag })));
+  const nextGroups = groupByTag(data.todos.filter((todo) => !todo.done && todo.status !== 'ended' && todoOverlaps(todo, nextWeekStart, nextWeekEnd)).map((todo) => ({ title: `${todo.title} ${formatTodoPeriod(todo)}`, tag: todo.tag })));
   const aiSummary = data.ai?.summaries.week;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

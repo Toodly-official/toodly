@@ -131,6 +131,12 @@ input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input
   font-weight: 700;
   padding: 0 16px;
 }
+.quick-input button:disabled {
+  cursor: not-allowed;
+  background: #d7dee8;
+  color: #8b95a1;
+  opacity: 1;
+}
 
 .todo-list { display: flex; flex-direction: column; gap: 10px; }
 .pin-standalone .todo-list {
