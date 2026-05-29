@@ -7,3 +7,13 @@ apps/desktop/release/
 .env.*
 .hermes/
 .omc/
+
+# AI assistant local state
+.claude/
+.cursor/
+.windsurf/
+.codex/
+.gemini/
+.continue/
+.roo/
+.kilo/
