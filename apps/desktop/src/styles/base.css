@@ -1,0 +1,24 @@
+:root {
+  --blue: #3182f6;
+  --blue-soft: #e8f3ff;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #191f28;
+  --muted: #8b95a1;
+  --line: #e5e8eb;
+  --green: #00c471;
+  --orange: #ff8a00;
+  --ended-todo-bg: #f0f4f8;
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+button { cursor: pointer; font: inherit; -webkit-app-region: no-drag; }
+input, select, textarea, button, a, .tabs, .ai-control, .todo-list, .quick-input, .calendar-grid, .screen-stack, .content-grid, .update-notice { -webkit-app-region: no-drag; }

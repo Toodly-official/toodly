@@ -1,0 +1,169 @@
+.calendar-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+.day-name,
+.date-cell { text-align: center; font-size: 13px; }
+.day-name { color: var(--muted); font-weight: 700; }
+.date-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 104px;
+  padding: 10px 8px;
+  border-radius: 16px;
+  background: #f9fafb;
+  text-align: left;
+  border: 0;
+  color: inherit;
+  overflow: visible;
+}
+.date-cell.muted { color: #b0b8c1; background: #fbfcfd; }
+.date-cell .num {
+  flex: 0 0 18px;
+  height: 18px;
+  line-height: 18px;
+  font-weight: 800;
+}
+.event-stack {
+  position: relative;
+  display: grid;
+  grid-auto-rows: 24px;
+  gap: 6px;
+  margin-top: 8px;
+}
+.date-cell.today { background: var(--blue); color: white; }
+.date-cell.selected { outline: 3px solid var(--blue-soft); }
+.dot { width: 6px; height: 6px; margin-top: 8px; border-radius: 50%; background: currentColor; opacity: .8; }
+.event-pill {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.today .event-pill { background: rgba(255,255,255,.2); color: white; }
+.todo-range,
+.today .todo-range { z-index: 1; background: var(--blue-soft); color: var(--blue); }
+.todo-range.start { width: calc(100% + 32px); margin-right: -32px; border-radius: 999px 0 0 999px; }
+.todo-range.middle { width: calc(100% + 64px); margin-left: -32px; margin-right: -32px; border-radius: 0; }
+.todo-range.end { width: calc(100% + 32px); margin-left: -32px; border-radius: 0 999px 999px 0; }
+.todo-range.ended,
+.today .todo-range.ended { background: var(--ended-todo-bg); color: #64748b; }
+.todo-range.continuing,
+.todo-range.ended.continuing,
+.today .todo-range.ended.continuing { color: transparent; }
+.date-cell.today { isolation: isolate; }
+.date-cell.today::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 30px;
+  bottom: 0;
+  background: var(--blue);
+  border-radius: 0 0 16px 16px;
+  z-index: -1;
+  pointer-events: none;
+}
+.todo-pill { background: #fff7e8; color: var(--orange); }
+.done-pill { opacity: .6; text-decoration: line-through; }
+.todo-range.done-pill { opacity: 1; }
+.calendar-wrap { position: relative; }
+.todo-popover {
+  position: absolute;
+  z-index: 5;
+  width: 300px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: white;
+  box-shadow: 0 20px 60px rgba(0, 27, 55, 0.16);
+}
+.todo-popover.add-case,
+.todo-popover.edit-case {
+  left: 50%;
+  top: 142px;
+  transform: translateX(-50%);
+}
+.todo-popover.edit-case { top: 168px; }
+.todo-popover::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.todo-popover.add-case::before { left: 54px; }
+.todo-popover.edit-case::before { right: 54px; }
+.todo-calendar-popover::before { left: 24px; }
+.todo-form { display: grid; gap: 10px; margin-top: 14px; }
+.field {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.input-field {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+}
+.input-field span {
+  font-size: 12px;
+  font-weight: 800;
+}
+.field-hint {
+  margin-top: -4px;
+  color: #8b95a1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.status-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f9fafb;
+}
+.status-check input { width: 18px; height: 18px; accent-color: var(--blue); }
+.status-check span { display: grid; gap: 2px; }
+.status-check b { font-size: 13px; }
+.status-check small { color: #8b95a1; font-size: 12px; line-height: 1.4; }
+.input-field input,
+.input-field textarea,
+.input-field select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  resize: vertical;
+}
+.time-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.primary-btn { height: 46px; font-size: 15px; }
+.full-width { width: 100%; }

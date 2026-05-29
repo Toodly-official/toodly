@@ -1,0 +1,57 @@
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ai-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 18px;
+  background: #f2f4f6;
+}
+.ai-control strong,
+.ai-control span {
+  display: block;
+}
+.ai-control strong { font-size: 13px; }
+.ai-control span { color: var(--muted); font-size: 11px; }
+.primary-btn.compact {
+  height: 36px;
+  padding: 0 12px;
+}
+.ghost-btn {
+  min-height: 34px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 12px;
+}
+.ai-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: .55;
+}
+.error-text {
+  color: #f04452 !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+.empty-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: #f9fafb;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
